@@ -1,0 +1,68 @@
+{
+  "proveedor": {
+    "crear": {
+      "nit": "900123456-7",
+      "razon_social": "Soluciones Tecnológicas XYZ S.A.S.",
+      "nombre_contacto": "Carlos Daniel Rodríguez",
+      "email": "carlos.rodriguez@soluciones.com",
+      "telefono": "+573218765432",
+      "direccion": "Calle 10 No 45-67 Apto 501",
+      "ciudad": "Santiago de Cali"
+    },
+    "actualizar": {
+      "razon_social": "Soluciones Tecnológicas XYZ S.A.S. Actualizada",
+      "telefono": "+573218765433"
+    }
+  },
+  "contrato": {
+    "crear": {
+      "proveedor_id": 1,
+      "numero_contrato": "CTR-2026-001",
+      "objeto_contrato": "Suministro de licencias de software mediante acuerdo de suscripción anual con soporte técnico 24/7",
+      "monto_total": 5000000,
+      "fecha_inicio": "2026-01-15",
+      "fecha_fin": "2027-01-15",
+      "url_documento": "https://storage.example.com/contratos/CTR-2026-001.pdf",
+      "observaciones": "Incluye soporte prioritario para 5 usuarios administrativos"
+    },
+    "actualizar": {
+      "estado": "en renovacion",
+      "observaciones": "En proceso de renovación para año siguiente"
+    }
+  },
+  "evaluacion": {
+    "crear": {
+      "proveedor_id": 1,
+      "contrato_id": 1,
+      "periodo_evaluacion": "2026-Q1",
+      "calidad": 4,
+      "cumplimiento_tiempos": 5,
+      "precio_competitivo": 3,
+      "servicio_postventa": 4,
+      "evaluador_id": "USR-00012"
+    }
+  },
+  "cotizacion": {
+    "crear": {
+      "proveedor_id": 1,
+      "descripcion": "Licencia de Office 365 Enterprise E3 para 100 usuarios",
+      "precio_unitario": 200000,
+      "condiciones_comerciales": "Pago mensual, factura a 30 días, descuento volumen 10%",
+      "vigencia_cotizacion": "2026-05-30"
+    },
+    "actualizar": {
+      "estado": "aceptada"
+    },
+    "comparar": "?descripcion=Licencia de Office 365 Enterprise E3 para 100 usuarios"
+  },
+  "documento": {
+    "crear": {
+      "proveedor_id": 1,
+      "tipo_documento": "rut",
+      "nombre_documento": "RUT empresa actualizado 2026",
+      "url_archivo": "https://storage.example.com/documentos/RUT-900123456-7.pdf",
+      "fecha_emision": "2026-01-10",
+      "fecha_vencimiento": "2027-01-10"
+    }
+  }
+}

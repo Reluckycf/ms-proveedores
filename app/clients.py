@@ -1,0 +1,125 @@
+import httpx
+import os
+from typing import Optional, Dict, Any
+import asyncio
+
+AUTH_SERVICE = os.getenv("MS_AUTENTICACION_URL", "http://localhost:8000")
+ROLES_SERVICE = os.getenv("MS_ROLES_URL", "http://localhost:8002")
+NOTIF_SERVICE = os.getenv("MS_NOTIFICACIONES_URL", "http://localhost:8003")
+AUDIT_SERVICE = os.getenv("MS_AUDITORIA_URL", "http://localhost:8004")
+
+APP_TOKEN = os.getenv("APP_TOKEN", "prv_token_dev_12345")
+
+
+class AuthClient:
+    @staticmethod
+    async def validate_session(token: str) -> Optional[Dict[str, Any]]:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{AUTH_SERVICE}/api/v1/sesiones/validar",
+                    json={"token": token},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json().get("data")
+                return None
+        except Exception:
+            return None
+
+
+class RolesClient:
+    @staticmethod
+    async def validate_permission(role_id: int, permission_code: str) -> bool:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{ROLES_SERVICE}/api/v1/permisos/validar",
+                    json={"role_id": role_id, "permission_code": permission_code},
+                    headers={"X-App-Token": APP_TOKEN},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json().get("data", {}).get("autorizado", False)
+                return False
+        except Exception:
+            return False
+
+
+class NotificacionesClient:
+    @staticmethod
+    async def enviar_alerta(tipo: str, asunto: str, descripcion: str, datos: Dict = None):
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{NOTIF_SERVICE}/api/v1/notificaciones/alerta",
+                    json={
+                        "tipo": tipo,
+                        "asunto": asunto,
+                        "descripcion": descripcion,
+                        "datos": datos or {}
+                    },
+                    headers={"X-App-Token": APP_TOKEN},
+                    timeout=5.0
+                )
+        except Exception:
+            pass
+
+    @staticmethod
+    async def enviar_contrato_vencimiento(numero_contrato: str, proveedor: str, fecha_fin: str):
+        await NotificacionesClient.enviar_alerta(
+            tipo="CONTRATO_PROXIMO_VENCER",
+            asunto=f"Contrato próximo a vencer: {numero_contrato}",
+            descripcion=f"Contrato {numero_contrato} con {proveedor} vence el {fecha_fin}",
+            datos={"numero_contrato": numero_contrato, "fecha_fin": fecha_fin}
+        )
+
+    @staticmethod
+    async def enviar_documento_vencimiento(proveedor: str, tipo_doc: str, fecha_venc: str):
+        await NotificacionesClient.enviar_alerta(
+            tipo="DOCUMENTO_PROXIMO_VENCER",
+            asunto=f"Documento próximo a vencer: {tipo_doc}",
+            descripcion=f"Documento {tipo_doc} de {proveedor} vence el {fecha_venc}",
+            datos={"tipo_documento": tipo_doc, "fecha_vencimiento": fecha_venc}
+        )
+
+    @staticmethod
+    async def enviar_puntaje_bajo(proveedor: str, puntaje: float):
+        await NotificacionesClient.enviar_alerta(
+            tipo="PROVEEDOR_PUNTAJE_BAJO",
+            asunto=f"Puntaje de evaluación bajo: {proveedor}",
+            descripcion=f"Proveedor {proveedor} tiene puntaje de evaluación bajo: {puntaje}",
+            datos={"proveedor": proveedor, "puntaje": puntaje}
+        )
+
+
+class AuditoriaClient:
+    @staticmethod
+    async def registrar_log(
+        request_id: str,
+        funcionalidad: str,
+        metodo: str,
+        codigo_respuesta: int,
+        duracion_ms: int,
+        usuario_id: str = "sistema",
+        detalle: str = ""
+    ):
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{AUDIT_SERVICE}/api/v1/logs",
+                    json={
+                        "request_id": request_id,
+                        "servicio": "ms-proveedores",
+                        "funcionalidad": funcionalidad,
+                        "metodo": metodo,
+                        "codigo_respuesta": codigo_respuesta,
+                        "duracion_ms": duracion_ms,
+                        "usuario_id": usuario_id,
+                        "detalle": detalle
+                    },
+                    headers={"X-App-Token": APP_TOKEN},
+                    timeout=5.0
+                )
+        except Exception:
+            pass
