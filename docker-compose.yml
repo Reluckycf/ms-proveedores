@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Servicio de PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: ms-proveedores-db
+    environment:
+      POSTGRES_DB: ms_proveedores
+      POSTGRES_USER: proveedor_user
+      POSTGRES_PASSWORD: proveedor_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proveedor_user -d ms_proveedores"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ms-proveedores-network
+
+  # Servicio de la API
+  api:
+    build: .
+    container_name: ms-proveedores-api
+    environment:
+      DATABASE_URL: postgresql://proveedor_user:proveedor_pass@postgres:5432/ms_proveedores
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    networks:
+      - ms-proveedores-network
+    command: python main.py
+
+volumes:
+  postgres_data:
+
+networks:
+  ms-proveedores-network:
+    driver: bridge
