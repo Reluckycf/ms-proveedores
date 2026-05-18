@@ -1,5 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.utils.core import generate_request_id, StandardResponse
+from app.dependencies import (
+    validar_sesion, validar_permiso, registrar_auditoria,
+    enviar_alerta_contrato, enviar_alerta_documento, enviar_alerta_puntaje_bajo,
+    generar_request_id
+)
 from app.schemas.provider import (
     ProveedorCreate, ProveedorUpdate, ProveedorResponse,
     ContratoCreate, ContratoUpdate, ContratoResponse,
@@ -14,6 +19,7 @@ from app.services.provider import (
 from app.models.models import (
     Proveedor, Contrato, Evaluacion, Cotizacion, DocumentoProveedor
 )
+import time
 
 
 router = APIRouter(prefix="/api/v1", tags=["proveedores"])
@@ -21,51 +27,151 @@ router = APIRouter(prefix="/api/v1", tags=["proveedores"])
 
 # ============= PROVEEDORES =============
 @router.post("/proveedores")
-def crear_proveedor(proveedor: ProveedorCreate):
-    request_id = generate_request_id()
+async def crear_proveedor(
+    proveedor: ProveedorCreate,
+    request: Request,
+    sesion: dict = Depends(validar_sesion)
+):
+    """
+    Crear un nuevo proveedor.
+    
+    Dependencias aplicadas:
+    - Validación de sesión (obligatoria)
+    - Validación de permiso: PRV_CREATE_PROVEEDOR
+    - Auditoría: registra la operación
+    """
+    request_id = await generar_request_id()
     response = StandardResponse(request_id)
+    start_time = time.time()
     
     try:
+        # Validar permiso específico
+        await validar_permiso(sesion, "PRV_CREATE_PROVEEDOR")
+        
         nuevo = ProveedorService.crear_proveedor(proveedor)
+        
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="crear_proveedor",
+            metodo="POST",
+            codigo_respuesta=201,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=f"Proveedor NIT {nuevo.nit} creado exitosamente",
+            duracion_ms=duracion_ms
+        )
+        
         return response.success(
             {
                 "id": nuevo.id,
                 "nit": nuevo.nit,
                 "razon_social": nuevo.razon_social,
             },
-            "Proveedor creado exitosamente"
+            "Proveedor creado exitosamente",
+            status_code=201
         )
     except ValueError as e:
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="crear_proveedor",
+            metodo="POST",
+            codigo_respuesta=400,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=str(e),
+            duracion_ms=duracion_ms
+        )
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="crear_proveedor",
+            metodo="POST",
+            codigo_respuesta=500,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=str(e),
+            duracion_ms=duracion_ms
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/proveedores/{proveedor_id}")
-def obtener_proveedor(proveedor_id: int):
-    request_id = generate_request_id()
+async def obtener_proveedor(
+    proveedor_id: int,
+    request: Request,
+    sesion: dict = Depends(validar_sesion)
+):
+    """
+    Obtener información de un proveedor.
+    
+    Dependencias aplicadas:
+    - Validación de sesión
+    - Validación de permiso: PRV_READ_PROVEEDOR
+    - Auditoría: registra la consulta
+    """
+    request_id = await generar_request_id()
     response = StandardResponse(request_id)
+    start_time = time.time()
     
-    proveedor = ProveedorService.obtener_proveedor(proveedor_id)
-    if not proveedor:
-        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
-    
-    contrato_vigente = ProveedorService.verificar_contrato_vigente(proveedor_id)
-    
-    return response.success({
-        "id": proveedor.id,
-        "nit": proveedor.nit,
-        "razon_social": proveedor.razon_social,
-        "nombre_contacto": proveedor.nombre_contacto,
-        "email": proveedor.email,
-        "telefono": proveedor.telefono,
-        "direccion": proveedor.direccion,
-        "ciudad": proveedor.ciudad,
-        "estado": proveedor.estado,
-        "fecha_registro": str(proveedor.fecha_registro),
-        "puntaje_evaluacion": proveedor.puntaje_evaluacion,
-        "contrato_vigente": contrato_vigente,
-    })
+    try:
+        await validar_permiso(sesion, "PRV_READ_PROVEEDOR")
+        
+        proveedor = ProveedorService.obtener_proveedor(proveedor_id)
+        if not proveedor:
+            duracion_ms = int((time.time() - start_time) * 1000)
+            await registrar_auditoria(
+                request_id=request_id,
+                funcionalidad="obtener_proveedor",
+                metodo="GET",
+                codigo_respuesta=404,
+                usuario_id=str(sesion.get("usuario_id", "sistema")),
+                detalle=f"Proveedor {proveedor_id} no encontrado",
+                duracion_ms=duracion_ms
+            )
+            raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+        
+        contrato_vigente = ProveedorService.verificar_contrato_vigente(proveedor_id)
+        
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="obtener_proveedor",
+            metodo="GET",
+            codigo_respuesta=200,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=f"Información del proveedor {proveedor.razon_social} consultada",
+            duracion_ms=duracion_ms
+        )
+        
+        return response.success({
+            "id": proveedor.id,
+            "nit": proveedor.nit,
+            "razon_social": proveedor.razon_social,
+            "nombre_contacto": proveedor.nombre_contacto,
+            "email": proveedor.email,
+            "telefono": proveedor.telefono,
+            "direccion": proveedor.direccion,
+            "ciudad": proveedor.ciudad,
+            "estado": proveedor.estado,
+            "fecha_registro": str(proveedor.fecha_registro),
+            "puntaje_evaluacion": proveedor.puntaje_evaluacion,
+            "contrato_vigente": contrato_vigente,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="obtener_proveedor",
+            metodo="GET",
+            codigo_respuesta=500,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=str(e),
+            duracion_ms=duracion_ms
+        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/proveedores")
@@ -201,42 +307,143 @@ def actualizar_contrato(contrato_id: int, datos: ContratoUpdate):
 
 
 @router.get("/contratos/proximos-vencer")
-def listar_contratos_proximos_vencer():
-    request_id = generate_request_id()
+async def listar_contratos_proximos_vencer(
+    request: Request,
+    sesion: dict = Depends(validar_sesion)
+):
+    """
+    Listar contratos próximos a vencer en los próximos 30 días.
+    
+    Dependencias aplicadas:
+    - Validación de sesión
+    - Validación de permiso: PRV_READ_CONTRATO
+    - Auditoría: registra la consulta
+    - Alertas automáticas: envía alertas para cada contrato próximo a vencer
+    """
+    request_id = await generar_request_id()
     response = StandardResponse(request_id)
+    start_time = time.time()
     
-    contratos = ContratoService.listar_contratos_proximos_vencer()
-    
-    return response.success(
-        [
-            {
-                "id": c.id,
-                "numero_contrato": c.numero_contrato,
-                "proveedor": c.proveedor.razon_social,
-                "fecha_fin": str(c.fecha_fin),
-            }
-            for c in contratos
-        ],
-        f"Se encontraron {len(contratos)} contratos próximos a vencer"
-    )
+    try:
+        await validar_permiso(sesion, "PRV_READ_CONTRATO")
+        
+        contratos = ContratoService.listar_contratos_proximos_vencer()
+        
+        # Enviar alertas automáticas para cada contrato próximo a vencer
+        # Según ms-proveedores: "Debe enviar alertas automáticas" para contratos próximos a vencer
+        for contrato in contratos:
+            await enviar_alerta_contrato(
+                numero_contrato=contrato.numero_contrato,
+                proveedor=contrato.proveedor.razon_social,
+                fecha_fin=str(contrato.fecha_fin)
+            )
+        
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="listar_contratos_proximos_vencer",
+            metodo="GET",
+            codigo_respuesta=200,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=f"Se consultaron {len(contratos)} contratos próximos a vencer",
+            duracion_ms=duracion_ms
+        )
+        
+        return response.success(
+            [
+                {
+                    "id": c.id,
+                    "numero_contrato": c.numero_contrato,
+                    "proveedor": c.proveedor.razon_social,
+                    "fecha_fin": str(c.fecha_fin),
+                }
+                for c in contratos
+            ],
+            f"Se encontraron {len(contratos)} contratos próximos a vencer"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="listar_contratos_proximos_vencer",
+            metodo="GET",
+            codigo_respuesta=500,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=str(e),
+            duracion_ms=duracion_ms
+        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============= EVALUACIONES =============
 @router.post("/evaluaciones")
-def registrar_evaluacion(evaluacion: EvaluacionCreate):
-    request_id = generate_request_id()
+async def registrar_evaluacion(
+    evaluacion: EvaluacionCreate,
+    request: Request,
+    sesion: dict = Depends(validar_sesion)
+):
+    """
+    Registrar una nueva evaluación de proveedor.
+    
+    Dependencias aplicadas:
+    - Validación de sesión
+    - Validación de permiso: PRV_CREATE_EVALUACION
+    - Auditoría: registra la operación
+    - Alertas automáticas: envía alerta si el puntaje está bajo (< 3.0)
+    """
+    request_id = await generar_request_id()
     response = StandardResponse(request_id)
+    start_time = time.time()
     
     try:
+        await validar_permiso(sesion, "PRV_CREATE_EVALUACION")
+        
         nueva = EvaluacionService.registrar_evaluacion(evaluacion)
+        
+        # Obtener el proveedor para información de la alerta
+        proveedor = ProveedorService.obtener_proveedor(evaluacion.proveedor_id)
+        
+        # Según ms-proveedores: "Debe enviar alertas... para proveedores con puntaje bajo (< 3.0)"
+        if nueva.puntaje_total < 3.0:
+            await enviar_alerta_puntaje_bajo(
+                proveedor=proveedor.razon_social,
+                puntaje=nueva.puntaje_total
+            )
+        
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="registrar_evaluacion",
+            metodo="POST",
+            codigo_respuesta=201,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=f"Evaluación registrada para proveedor {proveedor.razon_social} con puntaje {nueva.puntaje_total}",
+            duracion_ms=duracion_ms
+        )
+        
         return response.success(
             {
                 "id": nueva.id,
                 "puntaje_total": nueva.puntaje_total,
             },
-            "Evaluación registrada exitosamente"
+            "Evaluación registrada exitosamente",
+            status_code=201
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="registrar_evaluacion",
+            metodo="POST",
+            codigo_respuesta=500,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=str(e),
+            duracion_ms=duracion_ms
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -348,21 +555,71 @@ def listar_documentos_proveedor(proveedor_id: int):
 
 
 @router.get("/documentos/proximos-vencer")
-def listar_documentos_proximos_vencer():
-    request_id = generate_request_id()
+async def listar_documentos_proximos_vencer(
+    request: Request,
+    sesion: dict = Depends(validar_sesion)
+):
+    """
+    Listar documentos de proveedores próximos a vencer en los próximos 30 días.
+    
+    Dependencias aplicadas:
+    - Validación de sesión
+    - Validación de permiso: PRV_READ_DOCUMENTO
+    - Auditoría: registra la consulta
+    - Alertas automáticas: envía alertas para cada documento próximo a vencer
+    """
+    request_id = await generar_request_id()
     response = StandardResponse(request_id)
+    start_time = time.time()
     
-    documentos = DocumentoService.listar_documentos_proximos_vencer()
-    
-    return response.success(
-        [
-            {
-                "id": d.id,
-                "proveedor": d.proveedor.razon_social,
-                "tipo": d.tipo_documento,
-                "fecha_vencimiento": str(d.fecha_vencimiento),
-            }
-            for d in documentos
-        ],
-        f"Se encontraron {len(documentos)} documentos próximos a vencer"
-    )
+    try:
+        await validar_permiso(sesion, "PRV_READ_DOCUMENTO")
+        
+        documentos = DocumentoService.listar_documentos_proximos_vencer()
+        
+        # Enviar alertas automáticas para cada documento próximo a vencer
+        # Según ms-proveedores: "Debe enviar alertas automáticas" para documentos próximos a vencer
+        for documento in documentos:
+            await enviar_alerta_documento(
+                proveedor=documento.proveedor.razon_social,
+                tipo_doc=documento.tipo_documento,
+                fecha_venc=str(documento.fecha_vencimiento)
+            )
+        
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="listar_documentos_proximos_vencer",
+            metodo="GET",
+            codigo_respuesta=200,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=f"Se consultaron {len(documentos)} documentos próximos a vencer",
+            duracion_ms=duracion_ms
+        )
+        
+        return response.success(
+            [
+                {
+                    "id": d.id,
+                    "proveedor": d.proveedor.razon_social,
+                    "tipo": d.tipo_documento,
+                    "fecha_vencimiento": str(d.fecha_vencimiento),
+                }
+                for d in documentos
+            ],
+            f"Se encontraron {len(documentos)} documentos próximos a vencer"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        duracion_ms = int((time.time() - start_time) * 1000)
+        await registrar_auditoria(
+            request_id=request_id,
+            funcionalidad="listar_documentos_proximos_vencer",
+            metodo="GET",
+            codigo_respuesta=500,
+            usuario_id=str(sesion.get("usuario_id", "sistema")),
+            detalle=str(e),
+            duracion_ms=duracion_ms
+        )
+        raise HTTPException(status_code=500, detail=str(e))

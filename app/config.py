@@ -6,7 +6,7 @@ load_dotenv()
 
 DB_PATH = os.getenv(
     "DATABASE_URL", 
-    "postgresql://proveedor_user:proveedor_pass@postgres:5432/ms_proveedores"
+    "postgresql://proveedor_user:proveedor_pass@localhost:5432/ms_proveedores"
 )
 print(DB_PATH)
 

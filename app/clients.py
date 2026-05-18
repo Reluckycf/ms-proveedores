@@ -17,7 +17,7 @@ class AuthClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{AUTH_SERVICE}/api/v1/sesiones/validar",
+                    f"{AUTH_SERVICE}/api/v1/session/validate",
                     json={"token": token},
                     timeout=5.0
                 )

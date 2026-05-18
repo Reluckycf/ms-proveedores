@@ -1,27 +1,32 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import uvicorn
 from app.config import init_db
 from app.models.models import create_tables
 from app.routes.provider import router as proveedor_router
 from app.middleware import RequestIDMiddleware, LoggingMiddleware
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    create_tables()
+    print("Base de datos inicializada")
+    yield
+
 app = FastAPI(
     title="ms-proveedores [PRV]",
     description="Microservicio de gestión de proveedores",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
+
 
 # Agregar middlewares
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
 
-@app.on_event("startup")
-def startup_event():
-    init_db()
-    create_tables()
-    print("Base de datos inicializada")
 
 
 @app.get("/")
