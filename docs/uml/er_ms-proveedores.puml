@@ -1,0 +1,90 @@
+@startuml
+title Diagrama Entidad-Relacion (E-R) ms-proveedores
+
+entity proveedores {
+  * id
+  --
+  nit (unique)
+  razon_social
+  nombre_contacto
+  email
+  telefono
+  direccion
+  ciudad
+  estado
+  fecha_registro
+  puntaje_evaluacion
+  created_at
+  updated_at
+}
+
+entity contratos {
+  * id
+  --
+  * proveedor_id (FK)
+  * numero_contrato (unique)
+  * objeto_contrato
+  * monto_total
+  * fecha_inicio
+  * fecha_fin
+  estado
+  url_documento
+  observaciones
+  created_at
+  updated_at
+}
+
+entity evaluaciones {
+  * id
+  --
+  * proveedor_id (FK)
+  * contrato_id (FK)
+  * periodo_evaluacion
+  * calidad
+  * cumplimiento_tiempos
+  * precio_competitivo
+  * servicio_postventa
+  * puntaje_total
+  * evaluador_id
+  fecha_evaluacion
+  created_at
+  updated_at
+}
+
+entity cotizaciones {
+  * id
+  --
+  * proveedor_id (FK)
+  * descripcion
+  * precio_unitario
+  condiciones_comerciales
+  * vigencia_cotizacion
+  fecha_cotizacion
+  estado
+  created_at
+  updated_at
+}
+
+entity documentos_proveedor {
+  * id
+  --
+  * proveedor_id (FK)
+  * tipo_documento
+  * nombre_documento
+  * url_archivo
+  * fecha_emision
+  * fecha_vencimiento
+  estado
+  fecha_carga
+  created_at
+  updated_at
+}
+
+proveedores ||--o{ contratos
+proveedores ||--o{ evaluaciones
+contratos ||--o{ evaluaciones
+proveedores ||--o{ cotizaciones
+proveedores ||--o{ documentos_proveedor
+
+@enduml
+

@@ -1,0 +1,87 @@
+@startuml
+title Diagrama de Secuencia - Registrar Evaluacion ms-proveedores
+
+actor "Cliente API" as Cliente
+participant "FastAPI Routes\n(app/routes/provider.py)" as API
+participant "Validacion\n(app/dependencies.py)" as Deps
+participant "ms-autenticacion" as AUTH
+participant "ms-roles" as ROLES
+participant "EvaluacionService\n(app/services/provider.py)" as Service
+database "PostgreSQL" as DB
+participant "ms-auditoria" as AUDIT
+participant "ms-notificaciones" as NOTIF
+
+Cliente -> API: POST /api/v1/evaluaciones
+activate API
+
+note over API
+  request_id = PRV-timestamp-random
+end note
+
+API -> Deps: validar_sesion(request)
+activate Deps
+Deps -> AUTH: POST /api/v1/session/validate
+activate AUTH
+AUTH --> Deps: usuario_id, role_id, ...
+deactivate AUTH
+
+alt Sesion invalida
+  Deps --> API: HTTPException 401
+  API --> Cliente: error: Sesion invalida
+  deactivate Deps
+  deactivate API
+else Sesion valida
+  Deps -> ROLES: POST /api/v1/permisos/validar
+  activate ROLES
+  ROLES --> Deps: autorizado=true|false
+  deactivate ROLES
+  
+  alt Permiso insuficiente
+    Deps --> API: HTTPException 403
+    API --> Cliente: error: Permiso insuficiente
+    deactivate Deps
+    deactivate API
+  else Permiso valido
+    deactivate Deps
+    API -> Service: registrar_evaluacion(data)
+    activate Service
+    
+    Service -> Service: puntaje_total = (calidad + tiempos + precio + postventa) / 4
+    Service -> DB: INSERT evaluaciones
+    activate DB
+    DB --> Service: evaluacion_id
+    deactivate DB
+    
+    Service -> Service: actualizar_puntaje_proveedor(proveedor_id)
+    Service -> DB: SELECT evaluaciones WHERE proveedor_id
+    activate DB
+    DB --> Service: list_evaluaciones
+    deactivate DB
+    
+    Service -> DB: UPDATE proveedores SET puntaje_evaluacion
+    activate DB
+    DB --> Service: ok
+    deactivate DB
+    
+    alt puntaje < 3.0
+      Service -> NOTIF: POST enviar_puntaje_bajo
+      activate NOTIF
+      NOTIF --> Service: ok
+      deactivate NOTIF
+    end
+    
+    Service --> API: Evaluacion(id, puntaje_total)
+    deactivate Service
+    
+    API -> AUDIT: registrar_auditoria(request_id, ...)
+    activate AUDIT
+    AUDIT --> API: ok
+    deactivate AUDIT
+    
+    API --> Cliente: StandardResponse (request_id, data, success)
+    deactivate API
+  end
+end
+
+@enduml
+

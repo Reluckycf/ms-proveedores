@@ -1,0 +1,80 @@
+@startuml
+title Casos de uso — ms-proveedores [PRV]
+left to right direction
+
+actor "Cliente API" as Cliente
+actor "ms-autenticacion" as Auth
+actor "ms-roles" as Roles  
+actor "ms-auditoria" as Audit
+actor "ms-notificaciones" as Notif
+
+rectangle "ms-proveedores [PRV]" {
+  usecase "Validar sesion" as UC_VAL_SES
+  usecase "Validar permisos" as UC_VAL_PERM
+  usecase "Registrar auditoria" as UC_REG_AUDIT
+  
+  usecase "Crear proveedor" as UC1
+  usecase "Obtener proveedor" as UC2
+  usecase "Listar proveedores" as UC3
+  usecase "Actualizar proveedor" as UC4
+  usecase "Desactivar proveedor" as UC5
+
+  usecase "Crear contrato" as UC6
+  usecase "Obtener contrato" as UC7
+  usecase "Listar contratos\npor proveedor" as UC8
+  usecase "Actualizar contrato" as UC9
+  usecase "Listar contratos\nproximos vencer" as UC10
+
+  usecase "Registrar evaluacion" as UC11
+  usecase "Actualizar puntaje\nproveedor" as UC11B
+  usecase "Listar evaluaciones\npor proveedor" as UC12
+
+  usecase "Registrar cotizacion" as UC13
+  usecase "Obtener cotizacion" as UC13B
+  usecase "Actualizar cotizacion" as UC14
+  usecase "Comparar cotizaciones\npor descripcion" as UC15
+
+  usecase "Registrar documento" as UC16
+  usecase "Listar documentos\npor proveedor" as UC17
+  usecase "Listar documentos\nproximos vencer" as UC18
+
+  usecase "Enviar alerta" as UCAlert
+}
+
+Cliente --> UC_VAL_SES
+UC_VAL_SES ..> UC_VAL_PERM : include
+UC_VAL_SES ..> UC_REG_AUDIT : include
+UC_VAL_PERM --> Auth : consulta
+UC_VAL_PERM --> Roles : consulta
+UC_REG_AUDIT --> Audit : registra
+
+Cliente --> UC1 : requires PRV_CREATE_PROVEEDOR
+Cliente --> UC2
+Cliente --> UC3
+Cliente --> UC4 : requires PRV_UPDATE_PROVEEDOR
+Cliente --> UC5 : requires PRV_DELETE_PROVEEDOR
+
+Cliente --> UC6 : requires PRV_CREATE_CONTRATO
+Cliente --> UC7
+Cliente --> UC8
+Cliente --> UC9 : requires PRV_UPDATE_CONTRATO
+Cliente --> UC10
+
+Cliente --> UC11 : requires PRV_CREATE_EVALUACION
+UC11 ..> UC11B : include
+UC11B ..> UCAlert : extend
+Cliente --> UC12
+
+Cliente --> UC13 : requires PRV_CREATE_COTIZACION
+Cliente --> UC13B
+Cliente --> UC14
+Cliente --> UC15
+
+Cliente --> UC16 : requires PRV_CREATE_DOCUMENTO
+Cliente --> UC17
+Cliente --> UC18
+
+UCAlert --> Notif : enviar alerta
+
+@enduml
+
