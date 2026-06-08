@@ -1,0 +1,107 @@
+@startuml
+title Diagrama de Paquetes - ms-proveedores
+
+package "app" {
+  package "models" {
+    file "models.py" as models_file
+  }
+  
+  package "routes" {
+    file "provider.py" as routes_file
+  }
+  
+  package "services" {
+    file "provider.py" as services_file
+  }
+  
+  package "schemas" {
+    file "provider.py" as schemas_file
+  }
+  
+  package "utils" {
+    file "core.py" as utils_file
+  }
+  
+  file "clients.py" as clients_file
+  file "config.py" as config_file
+  file "dependencies.py" as dependencies_file
+  file "middleware.py" as middleware_file
+  file "logging.py" as logging_file
+  file "__init__.py" as init_file
+}
+
+package "tests" {
+  file "test_imports.py" as test_file
+}
+
+package "External" {
+  file "PostgreSQL DB" as db_file
+  file "ms-autenticacion" as auth_file
+  file "ms-roles" as roles_file
+  file "ms-auditoria" as audit_file
+  file "ms-notificaciones" as notif_file
+}
+
+package "Config" {
+  file "Dockerfile" as docker_file
+  file "docker-compose.yml" as compose_file
+  file ".env" as env_file
+  file "requirements.txt" as req_file
+}
+
+routes_file --> models_file : importa
+routes_file --> services_file : usa
+routes_file --> schemas_file : valida
+routes_file --> dependencies_file : aplica
+routes_file --> clients_file : auditoria
+
+services_file --> models_file : CRUD
+services_file --> clients_file : notifica
+services_file --> config_file : obtiene config
+
+dependencies_file --> clients_file : validacion
+dependencies_file --> config_file : obtiene config
+
+clients_file --> auth_file : consulta
+clients_file --> roles_file : consulta
+clients_file --> audit_file : registra
+clients_file --> notif_file : envia
+clients_file --> config_file : obtiene URLs
+
+middleware_file --> logging_file : usa
+
+models_file --> db_file : mapea
+services_file --> db_file : accede
+
+note bottom of models_file
+Proveedor, Contrato,
+Evaluacion, Cotizacion,
+DocumentoProveedor
+end note
+
+note bottom of services_file
+ProveedorService,
+ContratoService,
+EvaluacionService,
+CotizacionService,
+DocumentoService
+end note
+
+note bottom of routes_file
+Endpoints REST
+para cada entidad
+end note
+
+note bottom of clients_file
+AuthClient, RolesClient,
+NotificacionesClient,
+AuditoriaClient
+end note
+
+note bottom of dependencies_file
+validar_sesion,
+validar_permiso,
+registrar_auditoria
+end note
+
+@enduml

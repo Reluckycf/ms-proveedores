@@ -15,7 +15,7 @@ from app.clients import NotificacionesClient
 
 class ProveedorService:
     @staticmethod
-    def crear_proveedor(data: ProveedorCreate) -> Proveedor:
+    async def crear_proveedor(data: ProveedorCreate) -> Proveedor:
         if Proveedor.select().where(Proveedor.nit == data.nit).exists():
             raise ValueError("NIT duplicado")
         
@@ -31,21 +31,21 @@ class ProveedorService:
         return proveedor
 
     @staticmethod
-    def obtener_proveedor(proveedor_id: int) -> Optional[Proveedor]:
+    async def obtener_proveedor(proveedor_id: int) -> Optional[Proveedor]:
         try:
             return Proveedor.get_by_id(proveedor_id)
         except:
             return None
 
     @staticmethod
-    def listar_proveedores() -> List[Proveedor]:
+    async def listar_proveedores() -> List[Proveedor]:
         return list(Proveedor.select())
 
     @staticmethod
-    def actualizar_proveedor(
+    async def actualizar_proveedor(
         proveedor_id: int, data: ProveedorUpdate
     ) -> Optional[Proveedor]:
-        proveedor = ProveedorService.obtener_proveedor(proveedor_id)
+        proveedor = await ProveedorService.obtener_proveedor(proveedor_id)
         if not proveedor:
             return None
 
@@ -53,23 +53,23 @@ class ProveedorService:
         for campo, valor in actualizar_campos.items():
             setattr(proveedor, campo, valor)
         
-        proveedor.updated_at = datetime.utcnow()
+        proveedor.updated_at = datetime.now()
         proveedor.save()
         return proveedor
 
     @staticmethod
-    def desactivar_proveedor(proveedor_id: int) -> Optional[Proveedor]:
-        proveedor = ProveedorService.obtener_proveedor(proveedor_id)
+    async def desactivar_proveedor(proveedor_id: int) -> Optional[Proveedor]:
+        proveedor = await ProveedorService.obtener_proveedor(proveedor_id)
         if not proveedor:
             return None
         
         proveedor.estado = "inactivo"
-        proveedor.updated_at = datetime.utcnow()
+        proveedor.updated_at = datetime.now()
         proveedor.save()
         return proveedor
 
     @staticmethod
-    def verificar_contrato_vigente(proveedor_id: int) -> bool:
+    async def verificar_contrato_vigente(proveedor_id: int) -> bool:
         hoy = date.today()
         contrato = (
             Contrato.select()
@@ -85,7 +85,7 @@ class ProveedorService:
 
 class ContratoService:
     @staticmethod
-    def crear_contrato(data: ContratoCreate) -> Contrato:
+    async def crear_contrato(data: ContratoCreate) -> Contrato:
         if Contrato.select().where(
             Contrato.numero_contrato == data.numero_contrato
         ).exists():
@@ -104,21 +104,21 @@ class ContratoService:
         return contrato
 
     @staticmethod
-    def obtener_contrato(contrato_id: int) -> Optional[Contrato]:
+    async def obtener_contrato(contrato_id: int) -> Optional[Contrato]:
         try:
             return Contrato.get_by_id(contrato_id)
         except:
             return None
 
     @staticmethod
-    def listar_contratos_proveedor(proveedor_id: int) -> List[Contrato]:
+    async def listar_contratos_proveedor(proveedor_id: int) -> List[Contrato]:
         return list(Contrato.select().where(Contrato.proveedor_id == proveedor_id))
 
     @staticmethod
-    def actualizar_contrato(
+    async def actualizar_contrato(
         contrato_id: int, data: ContratoUpdate
     ) -> Optional[Contrato]:
-        contrato = ContratoService.obtener_contrato(contrato_id)
+        contrato = await ContratoService.obtener_contrato(contrato_id)
         if not contrato:
             return None
 
@@ -126,12 +126,12 @@ class ContratoService:
         for campo, valor in actualizar_campos.items():
             setattr(contrato, campo, valor)
         
-        contrato.updated_at = datetime.utcnow()
+        contrato.updated_at = datetime.now()
         contrato.save()
         return contrato
 
     @staticmethod
-    def listar_contratos_proximos_vencer() -> List[Contrato]:
+    async def listar_contratos_proximos_vencer() -> List[Contrato]:
         ahora = date.today()
         dentro_30_dias = ahora + timedelta(days=30)
         
@@ -144,12 +144,10 @@ class ContratoService:
         )
         
         for contrato in contratos:
-            asyncio.run(
-                NotificacionesClient.enviar_contrato_vencimiento(
-                    contrato.numero_contrato,
-                    contrato.proveedor.razon_social,
-                    str(contrato.fecha_fin)
-                )
+            await NotificacionesClient.enviar_contrato_vencimiento(
+                contrato.numero_contrato,
+                contrato.proveedor.razon_social,
+                str(contrato.fecha_fin)
             )
         
         return contratos
@@ -157,7 +155,7 @@ class ContratoService:
 
 class EvaluacionService:
     @staticmethod
-    def registrar_evaluacion(data: EvaluacionCreate) -> Evaluacion:
+    async def registrar_evaluacion(data: EvaluacionCreate) -> Evaluacion:
         puntaje_total = (
             data.calidad + data.cumplimiento_tiempos +
             data.precio_competitivo + data.servicio_postventa
@@ -175,11 +173,11 @@ class EvaluacionService:
             evaluador_id=data.evaluador_id,
         )
 
-        EvaluacionService.actualizar_puntaje_proveedor(data.proveedor_id)
+        await EvaluacionService.actualizar_puntaje_proveedor(data.proveedor_id)
         return evaluacion
 
     @staticmethod
-    def actualizar_puntaje_proveedor(proveedor_id: int):
+    async def actualizar_puntaje_proveedor(proveedor_id: int):
         evaluaciones = list(
             Evaluacion.select().where(Evaluacion.proveedor_id == proveedor_id)
         )
@@ -189,25 +187,25 @@ class EvaluacionService:
         promedio = sum(e.puntaje_total for e in evaluaciones) / len(evaluaciones)
         proveedor = Proveedor.get_by_id(proveedor_id)
         proveedor.puntaje_evaluacion = promedio
-        proveedor.updated_at = datetime.utcnow()
+        proveedor.updated_at = datetime.now()
         proveedor.save()
         
         if promedio < 3.0:
-            asyncio.run(
-                NotificacionesClient.enviar_puntaje_bajo(
-                    proveedor.razon_social,
-                    promedio
-                )
+            await NotificacionesClient.enviar_puntaje_bajo(
+                proveedor.razon_social,
+                promedio
             )
 
     @staticmethod
-    def listar_evaluaciones_proveedor(proveedor_id: int) -> List[Evaluacion]:
-        return list(Evaluacion.select().where(Evaluacion.proveedor_id == proveedor_id))
+    async def listar_evaluaciones_proveedor(proveedor_id: int) -> List[Evaluacion]:
+        return list(
+            Evaluacion.select().where(Evaluacion.proveedor_id == proveedor_id)
+        )
 
 
 class CotizacionService:
     @staticmethod
-    def registrar_cotizacion(data: CotizacionCreate) -> Cotizacion:
+    async def registrar_cotizacion(data: CotizacionCreate) -> Cotizacion:
         cotizacion = Cotizacion.create(
             proveedor_id=data.proveedor_id,
             descripcion=data.descripcion,
@@ -218,32 +216,32 @@ class CotizacionService:
         return cotizacion
 
     @staticmethod
-    def obtener_cotizacion(cotizacion_id: int) -> Optional[Cotizacion]:
+    async def obtener_cotizacion(cotizacion_id: int) -> Optional[Cotizacion]:
         try:
             return Cotizacion.get_by_id(cotizacion_id)
         except:
             return None
 
     @staticmethod
-    def actualizar_cotizacion(
+    async def actualizar_cotizacion(
         cotizacion_id: int, data: CotizacionUpdate
     ) -> Optional[Cotizacion]:
-        cotizacion = CotizacionService.obtener_cotizacion(cotizacion_id)
+        cotizacion = await CotizacionService.obtener_cotizacion(cotizacion_id)
         if not cotizacion:
             return None
 
         if data.estado:
             cotizacion.estado = data.estado
-        cotizacion.updated_at = datetime.utcnow()
+        cotizacion.updated_at = datetime.now()
         cotizacion.save()
         return cotizacion
 
     @staticmethod
-    def comparar_cotizaciones(descripcion: str) -> List[CotizacionComparacion]:
+    async def comparar_cotizaciones(descripcion: str) -> List[CotizacionComparacion]:
         cotizaciones = list(
-            Cotizacion.select()
-            .where(Cotizacion.descripcion == descripcion)
-            .join(Proveedor)
+            Cotizacion.select().where(
+                Cotizacion.descripcion.contains(descripcion)
+            ).order_by(Cotizacion.precio_unitario)
         )
         return [
             CotizacionComparacion(
@@ -258,7 +256,7 @@ class CotizacionService:
 
 class DocumentoService:
     @staticmethod
-    def registrar_documento(data: DocumentoProveedorCreate) -> DocumentoProveedor:
+    async def registrar_documento(data: DocumentoProveedorCreate) -> DocumentoProveedor:
         hoy = date.today()
         estado = (
             "vigente" if data.fecha_vencimiento > hoy
@@ -278,14 +276,16 @@ class DocumentoService:
         return documento
 
     @staticmethod
-    def obtener_documento(documento_id: int) -> Optional[DocumentoProveedor]:
+    async def obtener_documento(documento_id: int) -> Optional[DocumentoProveedor]:
         try:
             return DocumentoProveedor.get_by_id(documento_id)
         except:
             return None
 
     @staticmethod
-    def listar_documentos_proveedor(proveedor_id: int) -> List[DocumentoProveedor]:
+    async def listar_documentos_proveedor(
+        proveedor_id: int
+    ) -> List[DocumentoProveedor]:
         return list(
             DocumentoProveedor.select().where(
                 DocumentoProveedor.proveedor_id == proveedor_id
@@ -293,7 +293,7 @@ class DocumentoService:
         )
 
     @staticmethod
-    def listar_documentos_proximos_vencer() -> List[DocumentoProveedor]:
+    async def listar_documentos_proximos_vencer() -> List[DocumentoProveedor]:
         ahora = date.today()
         dentro_30_dias = ahora + timedelta(days=30)
         
@@ -306,12 +306,21 @@ class DocumentoService:
         )
         
         for documento in documentos:
-            asyncio.run(
-                NotificacionesClient.enviar_documento_vencimiento(
-                    documento.proveedor.razon_social,
-                    documento.tipo_documento,
-                    str(documento.fecha_vencimiento)
-                )
+            await NotificacionesClient.enviar_documento_vencimiento(
+                documento.proveedor.razon_social,
+                documento.tipo_documento,
+                str(documento.fecha_vencimiento)
             )
         
         return documentos
+
+    @staticmethod
+    async def ejecutar_revision_diaria():
+        """Ejecuta la revisión de contratos y documentos próximos a vencer"""
+        print("Ejecutando revisión diaria de proveedores...")
+        contratos = await ContratoService.listar_contratos_proximos_vencer()
+        documentos = await DocumentoService.listar_documentos_proximos_vencer()
+        return {
+            "contratos_notificados": len(contratos),
+            "documentos_notificados": len(documentos)
+        }

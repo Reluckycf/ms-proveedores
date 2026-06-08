@@ -7,8 +7,8 @@ from app.config import db
 
 
 class BaseModel(Model):
-    created_at = DateTimeField(default=datetime.utcnow)
-    updated_at = DateTimeField(default=datetime.utcnow)
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
 
     class Meta:
         database = db
@@ -96,7 +96,7 @@ class DocumentoProveedor(BaseModel):
         default="vigente",
         choices=["vigente", "vencido", "por_vencer"]
     )
-    fecha_carga = DateTimeField(default=datetime.utcnow)
+    fecha_carga = DateTimeField(default=datetime.now)
 
     class Meta:
         table_name = "documentos_proveedor"

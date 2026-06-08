@@ -32,8 +32,8 @@ class StandardResponse:
     def __init__(self, request_id: str):
         self.request_id = request_id
 
-    def success(self, data: Any = None, message: str = "") -> Dict[str, Any]:
-        return standard_response(self.request_id, True, data, message)
+    def success(self, data: Any = None, message: str = "", status_code: int = 200) -> Dict[str, Any]:
+        return standard_response(self.request_id, True, data, message, status_code)
 
-    def error(self, message: str, data: Any = None) -> Dict[str, Any]:
-        return standard_response(self.request_id, False, data, message)
+    def error(self, message: str, data: Any = None, status_code: int = 400) -> Dict[str, Any]:
+        return standard_response(self.request_id, False, data, message, status_code)

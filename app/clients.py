@@ -1,5 +1,6 @@
 import httpx
 import os
+from datetime import datetime
 from typing import Optional, Dict, Any
 import asyncio
 
@@ -17,14 +18,17 @@ class AuthClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{AUTH_SERVICE}/api/v1/session/validate",
+                    f"{AUTH_SERVICE}/api/v1/auth/session/validate",
                     json={"token": token},
                     timeout=5.0
                 )
                 if response.status_code == 200:
-                    return response.json().get("data")
+                    data = response.json()
+                    if data.get("valid"):
+                        return data
                 return None
-        except Exception:
+        except Exception as e:
+            print(f"Error validando sesión: {str(e)}")
             return None
 
 
@@ -96,30 +100,31 @@ class NotificacionesClient:
 class AuditoriaClient:
     @staticmethod
     async def registrar_log(
-        request_id: str,
-        funcionalidad: str,
-        metodo: str,
-        codigo_respuesta: int,
-        duracion_ms: int,
-        usuario_id: str = "sistema",
-        detalle: str = ""
+        trace_id: str,
+        action: str,
+        method: str,
+        status_code: int,
+        duration_ms: int,
+        user_id: str = "sistema",
+        detail: str = ""
     ):
         try:
             async with httpx.AsyncClient() as client:
                 await client.post(
                     f"{AUDIT_SERVICE}/api/v1/logs",
                     json={
-                        "request_id": request_id,
-                        "servicio": "ms-proveedores",
-                        "funcionalidad": funcionalidad,
-                        "metodo": metodo,
-                        "codigo_respuesta": codigo_respuesta,
-                        "duracion_ms": duracion_ms,
-                        "usuario_id": usuario_id,
-                        "detalle": detalle
+                        "timestamp": datetime.now().isoformat(),
+                        "trace_id": trace_id,
+                        "service_name": "ms-proveedores",
+                        "action": action,
+                        "method": method,
+                        "status_code": status_code,
+                        "duration_ms": duration_ms,
+                        "user_id": user_id,
+                        "detail": detail
                     },
-                    headers={"X-App-Token": APP_TOKEN},
+                    headers={"X-App-Token": "erp-system-audit-token-2024"},
                     timeout=5.0
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error registrando log: {str(e)}")

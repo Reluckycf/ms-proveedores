@@ -1,0 +1,119 @@
+@startuml
+title 6.7 Diagrama de Secuencia - Llamadas a Otros Microservicios
+
+actor "Cliente API" as Cliente
+participant "routes/provider.py" as Routes
+participant "services/provider.py" as Service
+participant "clients.py" as Clients
+participant "ms-autenticacion" as AUTH
+participant "ms-roles" as ROLES
+participant "ms-auditoria" as AUDIT
+participant "ms-notificaciones" as NOTIF
+
+Cliente -> Routes: POST /api/v1/evaluaciones
+activate Routes
+
+note over Routes
+Envio de request al microservicio
+end note
+
+Routes -> Routes: generar_request_id()
+note over Routes
+request_id = PRV-{timestamp}-{random_id}
+Seguimiento end-to-end
+end note
+
+Routes -> Clients: validaciones y coordinacion
+activate Clients
+
+Clients -> AUTH: validar_sesion(token)
+activate AUTH
+AUTH --> Clients: usuario_id, role_id
+deactivate AUTH
+
+note over Clients
+Primera llamada externa
+end note
+
+Clients -> ROLES: validar_permiso(role_id, permission_code)
+activate ROLES
+ROLES --> Clients: autorizado=true
+deactivate ROLES
+
+note over Clients
+Segunda llamada externa
+end note
+
+Clients --> Routes: validaciones completadas
+deactivate Clients
+
+Routes -> Service: registrar_evaluacion(data)
+activate Service
+
+Service -> Service: logica de negocio
+
+Service -> Clients: enviar alerta (async)
+activate Clients
+
+Clients -> NOTIF: enviar_puntaje_bajo(empresa, puntaje)
+activate NOTIF
+
+note over NOTIF
+Tercera llamada externa
+Operacion asincronica
+end note
+
+NOTIF --> Clients: ok
+deactivate NOTIF
+
+Clients --> Service: notificacion enviada
+deactivate Clients
+
+Service --> Routes: resultado de la operacion
+deactivate Service
+
+Routes -> Clients: registrar en auditoria
+activate Clients
+
+Clients -> AUDIT: registrar_auditoria(request_id, funcionalidad, ...)
+activate AUDIT
+
+note over AUDIT
+Cuarta llamada externa
+Registra toda operacion
+end note
+
+AUDIT --> Clients: ok
+deactivate AUDIT
+
+Clients --> Routes: auditoria registrada
+deactivate Clients
+
+Routes --> Cliente: StandardResponse{request_id, data, success}
+deactivate Routes
+
+note right of AUTH
+Microservicio: ms-autenticacion
+Validacion de tokens JWT
+Endpoint: POST /api/v1/session/validate
+end note
+
+note right of ROLES
+Microservicio: ms-roles
+Control de acceso basado en roles
+Endpoint: POST /api/v1/permisos/validar
+end note
+
+note right of AUDIT
+Microservicio: ms-auditoria
+Registro de todas las operaciones
+Endpoint: POST /api/v1/auditorias
+end note
+
+note right of NOTIF
+Microservicio: ms-notificaciones
+Envio de alertas
+Endpoint: POST /api/v1/notificaciones
+end note
+
+@enduml

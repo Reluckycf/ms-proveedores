@@ -85,7 +85,7 @@ class EvaluacionCreate(BaseModel):
     cumplimiento_tiempos: int = Field(ge=1, le=5)
     precio_competitivo: int = Field(ge=1, le=5)
     servicio_postventa: int = Field(ge=1, le=5)
-    evaluador_id: str
+    evaluador_id: Optional[str] = None
 
 
 class EvaluacionResponse(BaseModel):

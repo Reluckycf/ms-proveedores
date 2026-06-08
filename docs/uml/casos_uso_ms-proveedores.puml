@@ -30,7 +30,7 @@ rectangle "ms-proveedores [PRV]" {
   usecase "Listar evaluaciones\npor proveedor" as UC12
 
   usecase "Registrar cotizacion" as UC13
-  usecase "Obtener cotizacion" as UC13B
+  usecase "Obtener cotizacion" as UC14B
   usecase "Actualizar cotizacion" as UC14
   usecase "Comparar cotizaciones\npor descripcion" as UC15
 
@@ -66,7 +66,6 @@ UC11B ..> UCAlert : extend
 Cliente --> UC12
 
 Cliente --> UC13 : requires PRV_CREATE_COTIZACION
-Cliente --> UC13B
 Cliente --> UC14
 Cliente --> UC15
 

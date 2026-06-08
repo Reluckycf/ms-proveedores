@@ -1,0 +1,77 @@
+@startuml
+title Diagrama de Componentes - ms-proveedores
+
+!define COMPONENT(x) component x
+
+package "Cliente" {
+  COMPONENT(ClienteAPI) as "Cliente API"
+}
+
+package "ms-proveedores" {
+  COMPONENT(APIGateway) as "API Gateway\nFastAPI"
+  COMPONENT(MiddlewareComp) as "Middleware\nLogging/Error"
+  COMPONENT(RoutesComp) as "Routes\n(app/routes)"
+  COMPONENT(ServicesComp) as "Servicios\n(app/services)"
+  COMPONENT(ModelsComp) as "Modelos ORM\n(app/models)"
+  COMPONENT(DependenciesComp) as "Dependencias\n(app/dependencies)"
+  COMPONENT(SchemasComp) as "Schemas Pydantic\n(app/schemas)"
+  COMPONENT(ClientsComp) as "Clientes HTTP\n(app/clients)"
+  COMPONENT(UtilsComp) as "Utilidades\n(app/utils)"
+  COMPONENT(ConfigComp) as "Configuracion\n(app/config)"
+}
+
+database "PostgreSQL" {
+  COMPONENT(DBComp) as "Base de Datos"
+}
+
+package "Microservicios Externos" {
+  COMPONENT(MSAuth) as "ms-autenticacion"
+  COMPONENT(MSRoles) as "ms-roles"
+  COMPONENT(MSAudit) as "ms-auditoria"
+  COMPONENT(MSNotif) as "ms-notificaciones"
+}
+
+ClienteAPI --> APIGateway : HTTP/REST
+
+APIGateway --> MiddlewareComp : usa
+MiddlewareComp --> RoutesComp : procesa
+
+RoutesComp --> DependenciesComp : valida
+RoutesComp --> ServicesComp : invoca
+
+DependenciesComp --> ClientsComp : verifica
+DependenciesComp --> ConfigComp : obtiene config
+
+ServicesComp --> ModelsComp : CRUD
+ServicesComp --> ClientsComp : consume
+
+ModelsComp --> DBComp : persiste
+DBComp --> ModelsComp : retorna
+
+RoutesComp --> SchemasComp : valida entrada
+ServicesComp --> SchemasComp : mapea datos
+RoutesComp --> UtilsComp : genera response
+
+ClientsComp --> MSAuth : valida sesion
+ClientsComp --> MSRoles : valida permisos
+ClientsComp --> MSAudit : registra
+ClientsComp --> MSNotif : envia alertas
+
+note right of MiddlewareComp
+Maneja logging, 
+CORS, manejo de errores
+end note
+
+note right of DependenciesComp
+Validacion transversal:
+- Sesion (ms-auth)
+- Permisos (ms-roles)
+- Auditoria (ms-audit)
+end note
+
+note right of ClientsComp
+Comunicacion con
+microservicios externos
+end note
+
+@enduml
