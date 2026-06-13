@@ -1,111 +1,79 @@
 @startuml
-title 6.6 Diagrama de Secuencia - Validacion de Sesion y Permisos (Flujo Transversal)
+title Secuencia — Validacion de Sesion y Permisos (Flujo Transversal)
 
 actor "Cliente API" as Cliente
+participant "Middleware" as MW
 participant "routes/provider.py" as Routes
 participant "dependencies.py" as Deps
 participant "clients.py" as Clients
 participant "ms-autenticacion" as AUTH
-participant "ms-roles" as ROLES
 
-note over Routes
-Cualquier operacion en el microservicio
-comienza con validacion
-end note
+== 1. Procesamiento Middleware ==
+Cliente -> MW : POST /api/v1/<recurso>\nAuthorization: Bearer <token>
+activate MW
 
-Cliente -> Routes: POST /api/v1/<recurso>\nHeader: Authorization: Bearer <token>
+MW -> MW : LoggingMiddleware: registra start_time
+MW -> MW : RequestIDMiddleware:\ngenera request_id PRV-{ts}-{uid}
+MW -> Routes : pasa request con state.request_id
+deactivate MW
+
+== 2. Validacion de Sesion ==
 activate Routes
 
-note over Routes
-Step 1: Generar request_id
-request_id = f"PRV-{timestamp}-{random}"
-end note
-
-Routes -> Deps: validar_sesion(request)
+Routes -> Deps : RoleChecker(user=Depends(get_current_user))
 activate Deps
 
-note over Deps
-Extraer token del header Authorization
-end note
-
-Deps -> Clients: AuthClient.validate_session(token)
+Deps -> Deps : Extraer token del header Authorization
+Deps -> Clients : AuthClient.validate_session(token)
 activate Clients
 
-Clients -> AUTH: POST /api/v1/session/validate\nBody: {token: token}
+Clients -> AUTH : POST /api/v1/auth/session/validate\nBody: {"token": "..."}
 activate AUTH
-
-note over AUTH
-ms-autenticacion valida token
-Retorna: usuario_id, role_id, 
-nombre, email, etc.
-end note
-
-AUTH --> Clients: {usuario_id, role_id, email, ...}
+AUTH --> Clients : {"valid": true, "user_id": "...", "role": "Administrador", ...}
 deactivate AUTH
 
-Clients --> Deps: sesion_data
+Clients --> Deps : user_data (dict)
 deactivate Clients
 
-alt Token no valido
-  Deps --> Routes: HTTPException(401)
-  Routes --> Cliente: error: Sesion invalida
+alt Token invalido
+  Deps --> Routes : raise HTTPException(401)
+  Routes --> Cliente : {"detail": "Sesion invalida o expirada"}
   deactivate Deps
   deactivate Routes
 else Token valido
-  Deps --> Routes: sesion_data {usuario_id, role_id}
-  deactivate Deps
-  
-  note over Routes
-  Step 2: Validar permisos
-  end note
-  
-  Routes -> Deps: validar_permiso(sesion, permission_code)
-  activate Deps
-  
-  note over Deps
-  permission_code ejemplo: PRV_CREATE_EVALUACION
-  end note
-  
-  Deps -> Clients: RolesClient.validate_permission(role_id, permission_code)
-  activate Clients
-  
-  Clients -> ROLES: POST /api/v1/permisos/validar\nBody: {role_id, permission_code}
-  activate ROLES
-  
-  note over ROLES
-  ms-roles verifica si el rol
-  tiene permiso para ejecutar operacion
-  Retorna: {autorizado: true|false}
-  end note
-  
-  ROLES --> Clients: {autorizado: true|false}
-  deactivate ROLES
-  
-  Clients --> Deps: autorizado_bool
-  deactivate Clients
-  
-  alt Permiso denegado
-    Deps --> Routes: HTTPException(403)
-    Routes --> Cliente: error: Permiso insuficiente
+  Deps -> Deps : RoleChecker: user.role in allowed_roles?
+  alt Rol no autorizado
+    Deps --> Routes : raise HTTPException(403)
+    Routes --> Cliente : {"detail": "Rol sin permisos"}
     deactivate Deps
     deactivate Routes
-  else Permiso otorgado
-    Deps --> Routes: OK
+  else Rol autorizado
+    Deps --> Routes : user (dict)
     deactivate Deps
-    
-    note over Routes
-    Step 3: Permitir ejecucion
-    de la logica de negocio
+
+    == 3. Ejecucion de Logica de Negocio ==
+    Routes -> Routes : Procesar operacion...
+    note right
+      Cada endpoint ejecuta su
+      logica especifica via servicios
     end note
-    
-    Routes --> Cliente: procesando solicitud...
+
+    Routes --> Cliente : StandardResponse {request_id, success, data}
     deactivate Routes
   end
 end
 
-note right of Cliente
-Flujo aplicable a TODAS las operaciones:
-GET, POST, PUT, DELETE en cualquier recurso
+note right of AUTH
+Microservicio: ms-autenticacion
+Valida token JWT de sesion
+Retorna datos del usuario autenticado
+end note
+
+note right of Deps
+RoleChecker verifica solo
+el campo "role" del usuario
+contra la lista de roles permitidos
+NO se hace llamada externa a ms-roles
 end note
 
 @enduml

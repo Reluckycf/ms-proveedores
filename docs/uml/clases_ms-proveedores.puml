@@ -1,220 +1,105 @@
 @startuml
-title Diagrama de clases — ms-proveedores [PRV]
+title Diagrama de clases — ms-proveedores [PRV] (Vista general)
+
 skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
 
-package "Modelos (Peewee)" {
-  class BaseModel {
-    +created_at : datetime
-    +updated_at : datetime
-  }
-
-  class Proveedor {
-    +id : int
-    +nit : str
-    +razon_social : str
-    +nombre_contacto : str
-    +email : str
-    +telefono : str
-    +direccion : str
-    +ciudad : str
-    +estado : str
-    +fecha_registro : date
-    +puntaje_evaluacion : float
-  }
-
-  class Contrato {
-    +id : int
-    +proveedor_id : int
-    +numero_contrato : str
-    +objeto_contrato : str
-    +monto_total : decimal
-    +fecha_inicio : date
-    +fecha_fin : date
-    +estado : str
-    +url_documento : str
-    +observaciones : str
-  }
-
-  class Evaluacion {
-    +id : int
-    +proveedor_id : int
-    +contrato_id : int
-    +periodo_evaluacion : str
-    +calidad : int
-    +cumplimiento_tiempos : int
-    +precio_competitivo : int
-    +servicio_postventa : int
-    +puntaje_total : float
-    +evaluador_id : str
-    +fecha_evaluacion : date
-  }
-
-  class Cotizacion {
-    +id : int
-    +proveedor_id : int
-    +descripcion : str
-    +precio_unitario : decimal
-    +condiciones_comerciales : str
-    +vigencia_cotizacion : date
-    +fecha_cotizacion : date
-    +estado : str
-  }
-
-  class DocumentoProveedor {
-    +id : int
-    +proveedor_id : int
-    +tipo_documento : str
-    +nombre_documento : str
-    +url_archivo : str
-    +fecha_emision : date
-    +fecha_vencimiento : date
-    +estado : str
-    +fecha_carga : datetime
-  }
-
-  BaseModel <|-- Proveedor
-  BaseModel <|-- Contrato
-  BaseModel <|-- Evaluacion
-  BaseModel <|-- Cotizacion
-  BaseModel <|-- DocumentoProveedor
-
-  Proveedor "1" <-- "0..*" Contrato
-  Proveedor "1" <-- "0..*" Evaluacion
-  Contrato "1" <-- "0..*" Evaluacion
-  Proveedor "1" <-- "0..*" Cotizacion
-  Proveedor "1" <-- "0..*" DocumentoProveedor
+package "Modelos ORM (Peewee)" {
+  class BaseModel
+  class Proveedor
+  class Contrato
+  class Evaluacion
+  class Cotizacion
+  class DocumentoProveedor
 }
 
 package "Servicios" {
-  class ProveedorService {
-    +crear_proveedor(data) : Proveedor
-    +obtener_proveedor(id) : Proveedor
-    +listar_proveedores() : List
-    +actualizar_proveedor(id, data) : Proveedor
-    +desactivar_proveedor(id) : Proveedor
-    +verificar_contrato_vigente(id) : bool
-  }
-  
-  class ContratoService {
-    +crear_contrato(data) : Contrato
-    +obtener_contrato(id) : Contrato
-    +listar_contratos_proveedor(id) : List
-    +actualizar_contrato(id, data) : Contrato
-    +listar_contratos_proximos_vencer() : List
-  }
-  
-  class EvaluacionService {
-    +registrar_evaluacion(data) : Evaluacion
-    +actualizar_puntaje_proveedor(id) : void
-    +listar_evaluaciones_proveedor(id) : List
-  }
-  
-  class CotizacionService {
-    +registrar_cotizacion(data) : Cotizacion
-    +obtener_cotizacion(id) : Cotizacion
-    +actualizar_cotizacion(id, data) : Cotizacion
-    +comparar_cotizaciones(desc) : List
-  }
-  
-  class DocumentoService {
-    +registrar_documento(data) : DocumentoProveedor
-    +obtener_documento(id) : DocumentoProveedor
-    +listar_documentos_proveedor(id) : List
-    +listar_documentos_proximos_vencer() : List
-  }
+  class ProveedorService
+  class ContratoService
+  class EvaluacionService
+  class CotizacionService
+  class DocumentoService
+}
+
+package "Schemas Pydantic" {
+  class ProveedorCreate
+  class ProveedorUpdate
+  class ProveedorResponse
+  class ContratoCreate
+  class ContratoUpdate
+  class ContratoResponse
+  class EvaluacionCreate
+  class EvaluacionResponse
+  class CotizacionCreate
+  class CotizacionUpdate
+  class CotizacionResponse
+  class DocumentoProveedorCreate
+  class DocumentoProveedorResponse
+  class CotizacionComparacion
 }
 
 package "Clientes HTTP" {
-  class AuthClient {
-    +validate_session(token) : dict
-  }
-  
-  class RolesClient {
-    +validate_permission(role, perm) : bool
-  }
-  
-  class NotificacionesClient {
-    +enviar_puntaje_bajo(empresa, puntaje)
-    +enviar_contrato_vencimiento(contrato, empresa, fecha)
-    +enviar_documento_vencimiento(empresa, tipo, fecha)
-  }
-  
-  class AuditoriaClient {
-    +registrar_auditoria(request_id, func, metodo...)
-  }
+  class AuthClient
+  class RolesClient
+  class NotificacionesClient
+  class AuditoriaClient
 }
 
-package "Controladores" {
-  class ProveedorController {
-    +crear_proveedor(proveedor)
-    +obtener_proveedor(id)
-    +listar_proveedores()
-    +actualizar_proveedor(id, data)
-    +desactivar_proveedor(id)
-  }
-  
-  class ContratoController {
-    +crear_contrato(contrato)
-    +obtener_contrato(id)
-    +listar_contratos_proveedor(id)
-    +actualizar_contrato(id, data)
-    +listar_contratos_proximos_vencer()
-  }
-  
-  class EvaluacionController {
-    +registrar_evaluacion(evaluacion)
-    +listar_evaluaciones_proveedor(id)
-  }
-  
-  class CotizacionController {
-    +registrar_cotizacion(cotizacion)
-    +obtener_cotizacion(id)
-    +actualizar_cotizacion(id, data)
-    +comparar_cotizaciones(descripcion)
-  }
-  
-  class DocumentoController {
-    +registrar_documento(documento)
-    +obtener_documento(id)
-    +listar_documentos_proveedor(id)
-    +listar_documentos_proximos_vencer()
-  }
+package "Infraestructura" {
+  class RequestIDMiddleware
+  class LoggingMiddleware
+  class RoleChecker
+  class StandardResponse
 }
 
-ProveedorService --> Proveedor
-ContratoService --> Contrato
-EvaluacionService --> Evaluacion
-CotizacionService --> Cotizacion
-DocumentoService --> DocumentoProveedor
+ProveedorService ..> Proveedor
+ProveedorService ..> Contrato
+ContratoService ..> Proveedor
+ContratoService ..> Contrato
+EvaluacionService ..> Proveedor
+EvaluacionService ..> Evaluacion
+EvaluacionService ..> Contrato
+CotizacionService ..> Proveedor
+CotizacionService ..> Cotizacion
+DocumentoService ..> Proveedor
+DocumentoService ..> DocumentoProveedor
 
-ProveedorController --> ProveedorService
-ProveedorController --> AuthClient
-ProveedorController --> RolesClient
-ProveedorController --> AuditoriaClient
+ProveedorService ..> ProveedorCreate
+ProveedorService ..> ProveedorUpdate
+ContratoService ..> ContratoCreate
+ContratoService ..> ContratoUpdate
+EvaluacionService ..> EvaluacionCreate
+CotizacionService ..> CotizacionCreate
+CotizacionService ..> CotizacionUpdate
+CotizacionService ..> CotizacionComparacion
+DocumentoService ..> DocumentoProveedorCreate
 
-ContratoController --> ContratoService
-ContratoController --> AuthClient
-ContratoController --> RolesClient
-ContratoController --> AuditoriaClient
+EvaluacionService ..> NotificacionesClient
+ContratoService ..> NotificacionesClient
+DocumentoService ..> NotificacionesClient
 
-EvaluacionController --> EvaluacionService
-EvaluacionController --> AuthClient
-EvaluacionController --> RolesClient
-EvaluacionController --> AuditoriaClient
-EvaluacionService --> NotificacionesClient
+BaseModel <|-- Proveedor
+BaseModel <|-- Contrato
+BaseModel <|-- Evaluacion
+BaseModel <|-- Cotizacion
+BaseModel <|-- DocumentoProveedor
 
-CotizacionController --> CotizacionService
-CotizacionController --> AuthClient
-CotizacionController --> RolesClient
-CotizacionController --> AuditoriaClient
+Proveedor "1" --> "0..*" Contrato
+Proveedor "1" --> "0..*" Evaluacion
+Proveedor "1" --> "0..*" Cotizacion
+Proveedor "1" --> "0..*" DocumentoProveedor
+Contrato "1" --> "0..*" Evaluacion
 
-DocumentoController --> DocumentoService
-DocumentoController --> AuthClient
-DocumentoController --> RolesClient
-DocumentoController --> AuditoriaClient
-DocumentoService --> NotificacionesClient
+note bottom of BaseModel
+Atributos comunes:
+created_at, updated_at
+end note
 
-ContratoService --> NotificacionesClient
+note right
+Diagramas detallados:
+  - clases_modelos_ms-proveedores.puml
+  - clases_servicios_schemas_ms-proveedores.puml
+  - clases_infraestructura_ms-proveedores.puml
+end note
 
 @enduml
-

@@ -12,3 +12,4 @@ venv
 .gitignore
 .service-logs
 .running-services.json
+docs

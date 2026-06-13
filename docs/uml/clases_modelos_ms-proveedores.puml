@@ -1,0 +1,110 @@
+@startuml
+title Diagrama de clases — Modelos ORM (Peewee) — ms-proveedores [PRV]
+skinparam classAttributeIconSize 0
+
+class Peewee.Model <<framework>> {
+}
+
+class BaseModel {
+  + created_at : DateTimeField
+  + updated_at : DateTimeField
+}
+
+class Proveedor {
+  + id : AutoField (PK)
+  + nit : CharField (unique)
+  + razon_social : CharField
+  + nombre_contacto : CharField
+  + email : CharField
+  + telefono : CharField
+  + direccion : CharField
+  + ciudad : CharField
+  + estado : CharField [activo|inactivo|suspendido]
+  + fecha_registro : DateField
+  + puntaje_evaluacion : FloatField
+}
+
+class Contrato {
+  + id : AutoField (PK)
+  + proveedor_id : ForeignKeyField (FK)
+  + numero_contrato : CharField (unique)
+  + objeto_contrato : TextField
+  + monto_total : DecimalField
+  + fecha_inicio : DateField
+  + fecha_fin : DateField
+  + estado : CharField [vigente|vencido|cancelado|en renovacion]
+  + url_documento : TextField (nullable)
+  + observaciones : TextField (nullable)
+}
+
+class Evaluacion {
+  + id : AutoField (PK)
+  + proveedor_id : ForeignKeyField (FK)
+  + contrato_id : ForeignKeyField (FK)
+  + periodo_evaluacion : CharField
+  + calidad : IntegerField [1-5]
+  + cumplimiento_tiempos : IntegerField [1-5]
+  + precio_competitivo : IntegerField [1-5]
+  + servicio_postventa : IntegerField [1-5]
+  + puntaje_total : FloatField
+  + evaluador_id : CharField
+  + fecha_evaluacion : DateField
+}
+
+class Cotizacion {
+  + id : AutoField (PK)
+  + proveedor_id : ForeignKeyField (FK)
+  + descripcion : TextField
+  + precio_unitario : DecimalField
+  + condiciones_comerciales : TextField (nullable)
+  + vigencia_cotizacion : DateField
+  + fecha_cotizacion : DateField
+  + estado : CharField [activa|expirada|aceptada|rechazada]
+}
+
+class DocumentoProveedor {
+  + id : AutoField (PK)
+  + proveedor_id : ForeignKeyField (FK)
+  + tipo_documento : CharField [rut|camara_comercio|certificacion|poliza]
+  + nombre_documento : CharField
+  + url_archivo : TextField
+  + fecha_emision : DateField
+  + fecha_vencimiento : DateField
+  + estado : CharField [vigente|vencido|por_vencer]
+  + fecha_carga : DateTimeField
+}
+
+Peewee.Model <|-- BaseModel
+BaseModel <|-- Proveedor
+BaseModel <|-- Contrato
+BaseModel <|-- Evaluacion
+BaseModel <|-- Cotizacion
+BaseModel <|-- DocumentoProveedor
+
+Proveedor "1" --> "0..*" Contrato : contratos
+Proveedor "1" --> "0..*" Evaluacion : evaluaciones
+Proveedor "1" --> "0..*" Cotizacion : cotizaciones
+Proveedor "1" --> "0..*" DocumentoProveedor : documentos
+Contrato "1" --> "0..*" Evaluacion : evaluaciones
+
+note bottom of Proveedor
+Tabla: proveedores
+end note
+
+note bottom of Contrato
+Tabla: contratos
+end note
+
+note bottom of Evaluacion
+Tabla: evaluaciones
+end note
+
+note bottom of Cotizacion
+Tabla: cotizaciones
+end note
+
+note bottom of DocumentoProveedor
+Tabla: documentos_proveedor
+end note
+
+@enduml

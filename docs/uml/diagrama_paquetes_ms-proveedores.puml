@@ -1,76 +1,77 @@
 @startuml
-title Diagrama de Paquetes - ms-proveedores
+title Diagrama de Paquetes — ms-proveedores [PRV]
 
-package "app" {
-  package "models" {
-    file "models.py" as models_file
+package "ms-proveedores" {
+  package "app" {
+    package "models" {
+      file "models.py" as models_file
+    }
+
+    package "routes" {
+      file "provider.py" as routes_file
+    }
+
+    package "services" {
+      file "provider.py" as services_file
+    }
+
+    package "schemas" {
+      file "provider.py" as schemas_file
+    }
+
+    package "utils" {
+      file "core.py" as utils_file
+    }
+
+    file "clients.py" as clients_file
+    file "config.py" as config_file
+    file "dependencies.py" as dependencies_file
+    file "middleware.py" as middleware_file
+    file "logging.py" as logging_file
   }
-  
-  package "routes" {
-    file "provider.py" as routes_file
-  }
-  
-  package "services" {
-    file "provider.py" as services_file
-  }
-  
-  package "schemas" {
-    file "provider.py" as schemas_file
-  }
-  
-  package "utils" {
-    file "core.py" as utils_file
-  }
-  
-  file "clients.py" as clients_file
-  file "config.py" as config_file
-  file "dependencies.py" as dependencies_file
-  file "middleware.py" as middleware_file
-  file "logging.py" as logging_file
-  file "__init__.py" as init_file
+
+  file "main.py" as main_file
+  file "seed.py" as seed_file
 }
 
-package "tests" {
-  file "test_imports.py" as test_file
-}
-
-package "External" {
-  file "PostgreSQL DB" as db_file
-  file "ms-autenticacion" as auth_file
-  file "ms-roles" as roles_file
-  file "ms-auditoria" as audit_file
-  file "ms-notificaciones" as notif_file
-}
-
-package "Config" {
+package "Infraestructura" {
   file "Dockerfile" as docker_file
   file "docker-compose.yml" as compose_file
   file ".env" as env_file
   file "requirements.txt" as req_file
+  file "init_db.sh" as init_db_script
+  file "init_postgres.sql" as init_sql
 }
 
-routes_file --> models_file : importa
-routes_file --> services_file : usa
+database "PostgreSQL" as db_file
+entity "ms-autenticacion" as auth_svc
+entity "ms-roles" as roles_svc
+entity "ms-auditoria" as audit_svc
+entity "ms-notificaciones" as notif_svc
+
+main_file --> app
+
+routes_file --> services_file : invoca
 routes_file --> schemas_file : valida
 routes_file --> dependencies_file : aplica
+routes_file --> utils_file : respuesta
 routes_file --> clients_file : auditoria
 
 services_file --> models_file : CRUD
+services_file --> schemas_file : usa DTOs
 services_file --> clients_file : notifica
-services_file --> config_file : obtiene config
 
 dependencies_file --> clients_file : validacion
-dependencies_file --> config_file : obtiene config
+dependencies_file --> config_file : URLs
 
-clients_file --> auth_file : consulta
-clients_file --> roles_file : consulta
-clients_file --> audit_file : registra
-clients_file --> notif_file : envia
-clients_file --> config_file : obtiene URLs
+clients_file --> auth_svc : consulta
+clients_file --> roles_svc : consulta
+clients_file --> audit_svc : registra
+clients_file --> notif_svc : envia
 
-middleware_file --> logging_file : usa
+middleware_file --> utils_file : request_id
 
-models_file --> db_file : mapea
+models_file --> db_file : persiste
 services_file --> db_file : accede
 
 note bottom of models_file
@@ -80,16 +81,16 @@ DocumentoProveedor
 end note
 
 note bottom of services_file
-ProveedorService,
-ContratoService,
-EvaluacionService,
-CotizacionService,
+ProveedorService, ContratoService,
+EvaluacionService, CotizacionService,
 DocumentoService
 end note
 
 note bottom of routes_file
-Endpoints REST
-para cada entidad
+Endpoints REST /api/v1/
+para proveedores, contratos,
+evaluaciones, cotizaciones,
+documentos y admin
 end note
 
 note bottom of clients_file
@@ -99,9 +100,9 @@ AuditoriaClient
 end note
 
 note bottom of dependencies_file
-validar_sesion,
-validar_permiso,
-registrar_auditoria
+get_current_user,
+RoleChecker,
+registrar_auditoria_bg
 end note
 
 @enduml

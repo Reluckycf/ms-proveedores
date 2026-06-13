@@ -1,0 +1,226 @@
+@startuml
+title Diagrama de clases — Servicios y Schemas — ms-proveedores [PRV]
+skinparam classAttributeIconSize 0
+
+package "Schemas Pydantic (DTOs)" {
+  class ProveedorCreate {
+    + nit : str
+    + razon_social : str
+    + nombre_contacto : str
+    + email : str
+    + telefono : str
+    + direccion : str
+    + ciudad : str
+  }
+
+  class ProveedorUpdate {
+    + razon_social : Optional[str]
+    + nombre_contacto : Optional[str]
+    + email : Optional[str]
+    + telefono : Optional[str]
+    + direccion : Optional[str]
+    + ciudad : Optional[str]
+    + estado : Optional[str]
+  }
+
+  class ProveedorResponse {
+    + id : int
+    + nit : str
+    + razon_social : str
+    + nombre_contacto : str
+    + email : str
+    + telefono : str
+    + direccion : str
+    + ciudad : str
+    + estado : str
+    + fecha_registro : date
+    + puntaje_evaluacion : float
+    + contrato_vigente : Optional[bool]
+  }
+
+  class ContratoCreate {
+    + proveedor_id : int
+    + numero_contrato : str
+    + objeto_contrato : str
+    + monto_total : Decimal
+    + fecha_inicio : date
+    + fecha_fin : date
+    + url_documento : Optional[str]
+    + observaciones : Optional[str]
+  }
+
+  class ContratoUpdate {
+    + objeto_contrato : Optional[str]
+    + monto_total : Optional[Decimal]
+    + fecha_fin : Optional[date]
+    + estado : Optional[str]
+    + observaciones : Optional[str]
+  }
+
+  class ContratoResponse {
+    + id : int
+    + proveedor_id : int
+    + numero_contrato : str
+    + objeto_contrato : str
+    + monto_total : float
+    + fecha_inicio : date
+    + fecha_fin : date
+    + estado : str
+    + url_documento : Optional[str]
+    + observaciones : Optional[str]
+  }
+
+  class EvaluacionCreate {
+    + proveedor_id : int
+    + contrato_id : int
+    + periodo_evaluacion : str
+    + calidad : int (1-5)
+    + cumplimiento_tiempos : int (1-5)
+    + precio_competitivo : int (1-5)
+    + servicio_postventa : int (1-5)
+    + evaluador_id : Optional[str]
+  }
+
+  class EvaluacionResponse {
+    + id : int
+    + proveedor_id : int
+    + contrato_id : int
+    + periodo_evaluacion : str
+    + calidad : int
+    + cumplimiento_tiempos : int
+    + precio_competitivo : int
+    + servicio_postventa : int
+    + puntaje_total : float
+    + evaluador_id : str
+    + fecha_evaluacion : date
+  }
+
+  class CotizacionCreate {
+    + proveedor_id : int
+    + descripcion : str
+    + precio_unitario : Decimal
+    + condiciones_comerciales : Optional[str]
+    + vigencia_cotizacion : date
+  }
+
+  class CotizacionUpdate {
+    + estado : Optional[str]
+  }
+
+  class CotizacionResponse {
+    + id : int
+    + proveedor_id : int
+    + descripcion : str
+    + precio_unitario : float
+    + condiciones_comerciales : Optional[str]
+    + vigencia_cotizacion : date
+    + fecha_cotizacion : date
+    + estado : str
+  }
+
+  class DocumentoProveedorCreate {
+    + proveedor_id : int
+    + tipo_documento : str
+    + nombre_documento : str
+    + url_archivo : str
+    + fecha_emision : date
+    + fecha_vencimiento : date
+  }
+
+  class DocumentoProveedorResponse {
+    + id : int
+    + proveedor_id : int
+    + tipo_documento : str
+    + nombre_documento : str
+    + url_archivo : str
+    + fecha_emision : date
+    + fecha_vencimiento : date
+    + estado : str
+    + fecha_carga : datetime
+  }
+
+  class CotizacionComparacion {
+    + proveedor : str
+    + precio_unitario : float
+    + condiciones : Optional[str]
+    + vigencia : date
+  }
+}
+
+package "Servicios (Logica de negocio)" {
+  class ProveedorService {
+    +{static} crear_proveedor(data: ProveedorCreate) : Proveedor
+    +{static} obtener_proveedor(proveedor_id: int) : Optional[Proveedor]
+    +{static} listar_proveedores() : List[Proveedor]
+    +{static} actualizar_proveedor(proveedor_id: int, data: ProveedorUpdate) : Optional[Proveedor]
+    +{static} desactivar_proveedor(proveedor_id: int) : Optional[Proveedor]
+    +{static} verificar_contrato_vigente(proveedor_id: int) : bool
+  }
+
+  class ContratoService {
+    +{static} crear_contrato(data: ContratoCreate) : Contrato
+    +{static} obtener_contrato(contrato_id: int) : Optional[Contrato]
+    +{static} listar_contratos_proveedor(proveedor_id: int) : List[Contrato]
+    +{static} actualizar_contrato(contrato_id: int, data: ContratoUpdate) : Optional[Contrato]
+    +{static} listar_contratos_proximos_vencer() : List[Contrato]
+  }
+
+  class EvaluacionService {
+    +{static} registrar_evaluacion(data: EvaluacionCreate) : Evaluacion
+    +{static} actualizar_puntaje_proveedor(proveedor_id: int)
+    +{static} listar_evaluaciones_proveedor(proveedor_id: int) : List[Evaluacion]
+  }
+
+  class CotizacionService {
+    +{static} registrar_cotizacion(data: CotizacionCreate) : Cotizacion
+    +{static} obtener_cotizacion(cotizacion_id: int) : Optional[Cotizacion]
+    +{static} actualizar_cotizacion(cotizacion_id: int, data: CotizacionUpdate) : Optional[Cotizacion]
+    +{static} comparar_cotizaciones(descripcion: str) : List[CotizacionComparacion]
+  }
+
+  class DocumentoService {
+    +{static} registrar_documento(data: DocumentoProveedorCreate) : DocumentoProveedor
+    +{static} obtener_documento(documento_id: int) : Optional[DocumentoProveedor]
+    +{static} listar_documentos_proveedor(proveedor_id: int) : List[DocumentoProveedor]
+    +{static} listar_documentos_proximos_vencer() : List[DocumentoProveedor]
+    +{static} ejecutar_revision_diaria() : Dict[str, int]
+  }
+}
+
+ProveedorService ..> ProveedorCreate : <<usa>>
+ProveedorService ..> ProveedorUpdate : <<usa>>
+ContratoService ..> ContratoCreate : <<usa>>
+ContratoService ..> ContratoUpdate : <<usa>>
+EvaluacionService ..> EvaluacionCreate : <<usa>>
+CotizacionService ..> CotizacionCreate : <<usa>>
+CotizacionService ..> CotizacionUpdate : <<usa>>
+CotizacionService ..> CotizacionComparacion : <<crea>>
+DocumentoService ..> DocumentoProveedorCreate : <<usa>>
+
+note bottom of ProveedorService
+Valida NIT unico
+end note
+
+note bottom of ContratoService
+Valida numero de contrato unico
+end note
+
+note bottom of EvaluacionService
+Calcula puntaje_total = promedio(4 scores)
+Actualiza puntaje del proveedor
+Notifica si puntaje < 3.0
+end note
+
+note bottom of CotizacionService
+comparar_cotizaciones:
+filtra por descripcion,
+ordena por precio_unitario asc
+end note
+
+note bottom of DocumentoService
+registrar_documento: determina
+estado automaticamente segun
+fecha_vencimiento vs hoy
+end note
+
+@enduml

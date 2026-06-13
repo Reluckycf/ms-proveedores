@@ -1,0 +1,86 @@
+@startuml
+title Diagrama de clases — Infraestructura — ms-proveedores [PRV]
+skinparam classAttributeIconSize 0
+
+package "Clientes HTTP" {
+  class AuthClient {
+    +{static} validate_session(token: str) : Optional[Dict]
+  }
+
+  class RolesClient {
+    +{static} validate_permission(role_id: int, permission_code: str) : bool
+  }
+
+  class NotificacionesClient {
+    +{static} enviar_alerta(tipo: str, asunto: str, descripcion: str, datos: Dict)
+    +{static} enviar_contrato_vencimiento(numero_contrato: str, proveedor: str, fecha_fin: str)
+    +{static} enviar_documento_vencimiento(proveedor: str, tipo_doc: str, fecha_venc: str)
+    +{static} enviar_puntaje_bajo(proveedor: str, puntaje: float)
+  }
+
+  class AuditoriaClient {
+    +{static} registrar_log(trace_id: str, action: str, method: str, status_code: int, duration_ms: int, user_id: str, detail: str)
+  }
+}
+
+package "Middleware" {
+  class RequestIDMiddleware {
+    + dispatch(request, call_next) : Response
+  }
+
+  class LoggingMiddleware {
+    + dispatch(request, call_next) : Response
+  }
+}
+
+package "Dependencias (DI)" {
+  class RoleChecker {
+    + allowed_roles : list
+    + __call__(user: dict) : dict
+  }
+}
+
+package "Utilidades" {
+  class StandardResponse {
+    + request_id : str
+    + success(data, message, status_code) : dict
+    + error(message, data, status_code) : dict
+  }
+}
+
+note right of AuthClient
+POST {auth}/api/v1/auth/session/validate
+Timeout: 5s
+end note
+
+note right of RolesClient
+POST {roles}/api/v1/permisos/validar
+Header: X-App-Token
+Timeout: 5s
+(Disponible pero no utilizado en rutas actuales)
+end note
+
+note right of NotificacionesClient
+POST {notif}/api/v1/notificaciones/alerta
+Header: X-App-Token
+Timeout: 5s
+end note
+
+note right of AuditoriaClient
+POST {audit}/api/v1/logs
+Header: X-App-Token
+Timeout: 5s
+end note
+
+note bottom of RoleChecker
+Obtiene usuario via get_current_user()
+Verifica si user.role en allowed_roles
+roles: Administrador, Admin, Empleado
+end note
+
+note bottom of StandardResponse
+Formato de respuesta estandar:
+{request_id, success, data, message, timestamp}
+end note
+
+@enduml

@@ -1,119 +1,100 @@
 @startuml
-title 6.7 Diagrama de Secuencia - Llamadas a Otros Microservicios
+title Secuencia — Llamadas a Microservicios Externos (Vista general)
 
 actor "Cliente API" as Cliente
-participant "routes/provider.py" as Routes
-participant "services/provider.py" as Service
-participant "clients.py" as Clients
+participant "ms-proveedores [PRV]" as PRV
 participant "ms-autenticacion" as AUTH
-participant "ms-roles" as ROLES
-participant "ms-auditoria" as AUDIT
 participant "ms-notificaciones" as NOTIF
+participant "ms-auditoria" as AUDIT
+participant "ms-roles" as ROLES
 
-Cliente -> Routes: POST /api/v1/evaluaciones
-activate Routes
+== 1. Validacion de Sesion (Sincrona) ==
+Cliente -> PRV : Request con Authorization: Bearer <token>
+activate PRV
 
-note over Routes
-Envio de request al microservicio
-end note
-
-Routes -> Routes: generar_request_id()
-note over Routes
-request_id = PRV-{timestamp}-{random_id}
-Seguimiento end-to-end
-end note
-
-Routes -> Clients: validaciones y coordinacion
-activate Clients
-
-Clients -> AUTH: validar_sesion(token)
+PRV -> AUTH : POST /api/v1/auth/session/validate\nBody: {"token": "..."}
 activate AUTH
-AUTH --> Clients: usuario_id, role_id
+note right #ffcccc
+Requerida en TODAS las
+operaciones protegidas
+end note
+AUTH --> PRV : {"valid": true, user_id, role, ...}
 deactivate AUTH
 
-note over Clients
-Primera llamada externa
+== 2. Validacion de Permisos (Local) ==
+note over PRV #ccffcc
+RoleChecker verifica rol localmente:
+user.role in ["Administrador", "Admin", "Empleado"]
+SIN llamada externa a ms-roles
 end note
 
-Clients -> ROLES: validar_permiso(role_id, permission_code)
-activate ROLES
-ROLES --> Clients: autorizado=true
-deactivate ROLES
-
-note over Clients
-Segunda llamada externa
+note over ROLES #ccccff
+Cliente RolesClient existe pero
+NO es utilizado en las rutas actuales.
+La validacion de permisos se hace
+localmente por nombre de rol.
 end note
 
-Clients --> Routes: validaciones completadas
-deactivate Clients
+== 3. Operacion de Negocio ==
+PRV -> PRV : Ejecuta logica de negocio\n(Services -> Models -> DB)
 
-Routes -> Service: registrar_evaluacion(data)
-activate Service
+== 4. Notificaciones (Asincrona, condicional) ==
+alt Puntaje bajo (< 3.0)
+  PRV -> NOTIF : POST /api/v1/notificaciones/alerta\n{tipo: PROVEEDOR_PUNTAJE_BAJO}
+  activate NOTIF
+  NOTIF --> PRV : 200 OK
+  deactivate NOTIF
+else Contrato proximo a vencer
+  PRV -> NOTIF : POST /api/v1/notificaciones/alerta\n{tipo: CONTRATO_PROXIMO_VENCER}
+  activate NOTIF
+  NOTIF --> PRV : 200 OK
+  deactivate NOTIF
+else Documento proximo a vencer
+  PRV -> NOTIF : POST /api/v1/notificaciones/alerta\n{tipo: DOCUMENTO_PROXIMO_VENCER}
+  activate NOTIF
+  NOTIF --> PRV : 200 OK
+  deactivate NOTIF
+end
 
-Service -> Service: logica de negocio
-
-Service -> Clients: enviar alerta (async)
-activate Clients
-
-Clients -> NOTIF: enviar_puntaje_bajo(empresa, puntaje)
-activate NOTIF
-
-note over NOTIF
-Tercera llamada externa
-Operacion asincronica
+== 5. Auditoria programada en BackgroundTasks ==
+note over PRV #ccffcc
+registrar_auditoria_bg agrega tarea
+a BackgroundTasks de FastAPI.
+Se ejecuta DESPUES de responder al cliente.
 end note
 
-NOTIF --> Clients: ok
-deactivate NOTIF
+== 6. Respuesta al Cliente ==
+PRV --> Cliente : StandardResponse {request_id, success, data}
+deactivate PRV
 
-Clients --> Service: notificacion enviada
-deactivate Clients
-
-Service --> Routes: resultado de la operacion
-deactivate Service
-
-Routes -> Clients: registrar en auditoria
-activate Clients
-
-Clients -> AUDIT: registrar_auditoria(request_id, funcionalidad, ...)
+== 7. BackgroundTasks ejecuta auditoria (post-respuesta) ==
+PRV -> PRV : [BackgroundTasks]\nAuditoriaClient.registrar_log(...)
+activate PRV
+PRV -> AUDIT : POST /api/v1/logs\n{trace_id, action, method, status_code, ...}
 activate AUDIT
-
-note over AUDIT
-Cuarta llamada externa
-Registra toda operacion
-end note
-
-AUDIT --> Clients: ok
+AUDIT --> PRV : 200 OK
 deactivate AUDIT
-
-Clients --> Routes: auditoria registrada
-deactivate Clients
-
-Routes --> Cliente: StandardResponse{request_id, data, success}
-deactivate Routes
+deactivate PRV
 
 note right of AUTH
-Microservicio: ms-autenticacion
-Validacion de tokens JWT
-Endpoint: POST /api/v1/session/validate
-end note
-
-note right of ROLES
-Microservicio: ms-roles
-Control de acceso basado en roles
-Endpoint: POST /api/v1/permisos/validar
-end note
-
-note right of AUDIT
-Microservicio: ms-auditoria
-Registro de todas las operaciones
-Endpoint: POST /api/v1/auditorias
+Servicio: ms-autenticacion
+Endpoint: POST /api/v1/auth/session/validate
+Proposito: Validar token JWT
+Tiempo: Sincrono (timeout 5s)
 end note
 
 note right of NOTIF
-Microservicio: ms-notificaciones
-Envio de alertas
-Endpoint: POST /api/v1/notificaciones
+Servicio: ms-notificaciones
+Endpoint: POST /api/v1/notificaciones/alerta
+Proposito: Alertas de vencimientos y puntaje bajo
+Tiempo: Asincrono (timeout 5s)
+end note
+
+note right of AUDIT
+Servicio: ms-auditoria
+Endpoint: POST /api/v1/logs
+Proposito: Registro de operaciones CRUD
+Tiempo: Asincrono via BackgroundTasks
 end note
 
 @enduml

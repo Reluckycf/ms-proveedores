@@ -1,94 +1,99 @@
 @startuml
-title 6.5 Diagrama de Secuencia - Registrar Evaluacion (Flujo Completo)
+title Secuencia — Registrar Evaluacion (Flujo Completo)
 
 actor "Cliente API" as Cliente
+participant "Middleware" as MW
 participant "routes/provider.py" as Routes
 participant "dependencies.py" as Deps
 participant "services/provider.py" as Service
-participant "models.py" as Models
+participant "clients.py" as Clients
 database "PostgreSQL" as DB
+participant "ms-notificaciones" as NOTIF
+participant "ms-auditoria" as AUDIT
 
-Cliente -> Routes: POST /api/v1/evaluaciones\n(request, proveedor_id, contrato_id, ...)
+== Middleware ==
+Cliente -> MW : POST /api/v1/evaluaciones\nAuthorization: Bearer <token>\nBody: {proveedor_id, contrato_id, ...}
+activate MW
+MW -> MW : RequestIDMiddleware: genera request_id
+MW -> Routes : request con state.request_id = PRV-{ts}-{uid}
+deactivate MW
+
 activate Routes
 
-note over Routes
-generar_request_id()
-request_id = PRV-timestamp-random
-end note
-
-Routes -> Deps: validar_sesion(request)
+== Validacion (Dependency Injection) ==
+Routes -> Deps : RoleChecker(["Administrador", "Admin"])
 activate Deps
-note over Deps
-Verifica token en header Authorization
-end note
-Deps --> Routes: sesion_data (usuario_id, role_id)
+Deps -> Clients : AuthClient.validate_session(token)
+activate Clients
+Clients -> AUTH : POST {auth}/api/v1/auth/session/validate
+activate AUTH
+AUTH --> Clients : user_data (dict)
+deactivate AUTH
+Clients --> Deps : user_data (dict)
+deactivate Clients
+Deps --> Routes : user autorizado
 deactivate Deps
 
-Routes -> Deps: validar_permiso(sesion, "PRV_CREATE_EVALUACION")
-activate Deps
-Deps --> Routes: autorizado=true
-deactivate Deps
+== Asignacion del evaluador ==
+Routes -> Routes : evaluacion.evaluador_id = user.user_id
 
-Routes -> Service: registrar_evaluacion(EvaluacionCreate)
+== Registro de evaluacion ==
+Routes -> Service : EvaluacionService.registrar_evaluacion(data)
 activate Service
 
-Service -> Service: puntaje_total = calcular_promedio(calidad, tiempos, precio, postventa)
-note over Service
-puntaje_total = (calidad + cumplimiento_tiempos + precio_competitivo + servicio_postventa) / 4
-end note
+Service -> Service : puntaje_total = (calidad + cumplimiento_tiempos\n+ precio_competitivo + servicio_postventa) / 4.0
 
-Service -> Models: Evaluacion.create(...)
-activate Models
-Models -> DB: INSERT INTO evaluaciones
+Service -> DB : INSERT INTO evaluaciones
 activate DB
-DB --> Models: evaluacion_id, puntaje_total
+DB --> Service : evaluacion creada
 deactivate DB
-Models --> Service: evaluacion_obj
-deactivate Models
 
-Service -> Service: actualizar_puntaje_proveedor(proveedor_id)
-note over Service
-Recalcula el puntaje promedio del proveedor
-end note
-
-Service -> Models: Evaluacion.select().where(proveedor_id)
-activate Models
-Models -> DB: SELECT FROM evaluaciones
+Service -> Service : actualizar_puntaje_proveedor(proveedor_id)
+Service -> DB : SELECT evaluaciones WHERE proveedor_id = ?
 activate DB
-DB --> Models: lista_evaluaciones[]
+DB --> Service : lista de evaluaciones
 deactivate DB
-Models --> Service: lista_evaluaciones
-deactivate Models
-
-Service -> Service: promedio_proveedor = calcular_promedio(lista_evaluaciones)
-
-Service -> Models: Proveedor.update().set(puntaje_evaluacion=promedio)
-activate Models
-Models -> DB: UPDATE proveedores SET puntaje_evaluacion
+Service -> Service : promedio = sum(puntajes) / count
+Service -> DB : UPDATE proveedores SET puntaje_evaluacion = promedio
 activate DB
-DB --> Models: ok
+DB --> Service : ok
 deactivate DB
-Models --> Service: proveedor_actualizado
-deactivate Models
 
-alt promedio_proveedor < 3.0
-  Service --> Routes: alerta pendiente (puntaje bajo)
-  note over Service
-  Se enviara alerta asincronamente
-  a ms-notificaciones
-  end note
+alt promedio < 3.0
+  Service -> Clients : NotificacionesClient.enviar_puntaje_bajo(razon_social, promedio)
+  activate Clients
+  Clients -> NOTIF : POST /api/v1/notificaciones/alerta\n{tipo: PROVEEDOR_PUNTAJE_BAJO}
+  activate NOTIF
+  NOTIF --> Clients : ok
+  deactivate NOTIF
+  Clients --> Service : ok
+  deactivate Clients
 end
 
-Service --> Routes: Evaluacion{id, puntaje_total, ...}
+Service --> Routes : Evaluacion {id, puntaje_total, ...}
 deactivate Service
 
-Routes -> Deps: registrar_auditoria(request_id, "registrar_evaluacion", ...)
-activate Deps
-Deps --> Routes: ok
-deactivate Deps
+== Auditoria asincrona (BackgroundTasks) ==
+Routes -> Routes : registrar_auditoria_bg(background_tasks, trace_id,\n"REGISTRAR_EVALUACION", "POST", 201, ...)
+note right
+Se agrega tarea a BackgroundTasks
+de FastAPI para ejecucion posterior
+end note
 
-Routes --> Cliente: StandardResponse\n{request_id, success=true, data, timestamp}
+Routes --> Cliente : StandardResponse {request_id, success=true, data, timestamp}
 deactivate Routes
 
-@enduml
+== Ejecucion en Background (post-respuesta) ==
+participant FastAPI_BackgroundTasks as BT
+BT -> BT : [BackgroundTasks]\nEjecuta tareas pendientes
 
+BT -> Clients : AuditoriaClient.registrar_log(trace_id, action, ...)
+activate Clients
+Clients -> AUDIT : POST /api/v1/logs\n{trace_id, action, method, status_code, ...}
+activate AUDIT
+AUDIT --> Clients : 200 OK
+deactivate AUDIT
+Clients --> BT : ok
+deactivate Clients
+
+@enduml
