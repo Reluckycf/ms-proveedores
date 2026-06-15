@@ -14,13 +14,26 @@ async def get_current_user(request: Request):
     return user
 
 class RoleChecker:
-    def __init__(self, allowed_roles: list):
+    def __init__(self, allowed_roles: list, permission_code: str = None):
         self.allowed_roles = allowed_roles
+        self.permission_code = permission_code
 
     async def __call__(self, user: dict = Depends(get_current_user)):
-        # Si el rol del usuario está en la lista permitida, pasa
-        # ms-auth devuelve el campo como "role"
         role_name = user.get("role", "").lower()
+        role_name_original = user.get("role", "")
+
+        # RT-02: Intentar validar permiso contra ms-roles
+        if self.permission_code:
+            try:
+                autorizado = await RolesClient.validate_permission(
+                    role_name_original, self.permission_code
+                )
+                if autorizado:
+                    return user
+            except Exception:
+                pass
+
+        # Fallback: validar por nombre de rol
         if role_name not in [r.lower() for r in self.allowed_roles]:
             raise HTTPException(
                 status_code=403, 

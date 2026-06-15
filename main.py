@@ -12,9 +12,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Agregar middlewares
-app.add_middleware(LoggingMiddleware)
+# Agregar middlewares (RequestID primero para que Logging tenga acceso al ID)
 app.add_middleware(RequestIDMiddleware)
+app.add_middleware(LoggingMiddleware)
 
 
 @app.on_event("startup")

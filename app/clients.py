@@ -34,19 +34,20 @@ class AuthClient:
 
 class RolesClient:
     @staticmethod
-    async def validate_permission(role_id: int, permission_code: str) -> bool:
+    async def validate_permission(role_name: str, permission_code: str) -> bool:
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{ROLES_SERVICE}/api/v1/permisos/validar",
-                    json={"role_id": role_id, "permission_code": permission_code},
-                    headers={"X-App-Token": APP_TOKEN},
+                response = await client.get(
+                    f"{ROLES_SERVICE}/api/v1/validacion/permiso",
+                    params={"rol": role_name, "permiso": permission_code},
+                    headers={"Authorization": f"Bearer {APP_TOKEN}"},
                     timeout=5.0
                 )
                 if response.status_code == 200:
                     return response.json().get("data", {}).get("autorizado", False)
                 return False
-        except Exception:
+        except Exception as e:
+            print(f"Error validando permiso: {str(e)}")
             return False
 
 
@@ -123,7 +124,7 @@ class AuditoriaClient:
                         "user_id": user_id,
                         "detail": detail
                     },
-                    headers={"X-App-Token": "erp-system-audit-token-2024"},
+                    headers={"X-App-Token": APP_TOKEN},
                     timeout=5.0
                 )
         except Exception as e:
